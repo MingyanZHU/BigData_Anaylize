@@ -153,14 +153,36 @@ normalization_record = filtered_record.map(time_temp_parse)
 \begin{minted}{Shell}
     cat D_Filtered/part-* | grep "?" | wc -l 
 \end{minted}
-\paragraph{输出} 将所有的缺失信息进行填充之后的结果，即\texttt{D\_Preprocessed}。
+\paragraph{输出} 将所有的缺失信息进行填充之后的结果，即\texttt{D\_Preprocessed}；同样执行上述的\texttt{Shell}命令，得到的结果为$0$条信息。
 \paragraph{数据填充方法} 主要分为以下两步，分别用于填充\texttt{user\_income}和\texttt{rating}。
 \begin{enumerate}
     \item 根据\texttt{user\_career}和\texttt{user\_nationlity}进行分组，将每个分组的薪资\texttt{user\_income}平均值作为具有同样国籍和职业但缺失薪资的元组的填充值。
     \item 将根据第一步填充好的结果，利用机器学习中线性回归的方式和未缺失\texttt{rating}的数据中\texttt{longitude, latitude, altitude, user\_income}学习到相关的模型，对相应缺失值进行预测。
 \end{enumerate}
+具体的代码如下所示。
+\begin{pythoncode}
+def fill_rating(x):
+    if x[6] != "?":
+        return x
+    else:
+        _features = np.array([float(x[1]), float(x[2]), float(x[3]), float(x[-1])])
+        return x[:6] + ["%.2f" % (_features.dot(coefficients))] + x[7:]
+
+spark = SparkSession(sc)
+training_data = spark.createDataFrame(fill_missing_income.filter(lambda x: x[6] != "?")\
+                .map(lambda x: (float(x[6]), DenseVector([float(x[1]), float(x[2]), 
+                float(x[3]), float(x[-1])]))), ["label", "features"])
+lr = LinearRegression(maxIter=10, regParam=0.2, elasticNetParam=0, fitIntercept=False)
+lrModel = lr.fit(training_data)
+coefficients = np.array(lrModel.coefficients)
+fill_missing = fill_missing_income.map(fill_rating)
+fill_missing.map(lambda x: "|".join(x)).coalesce(1).saveAsTextFile("D_Preprocessed")
+\end{pythoncode}
 \section{实验心得}
-可以分享您在实验环境搭建、程序编写和调试以及结果分析过程中遇到的问题和解决方法。
+% 可以分享您在实验环境搭建、程序编写和调试以及结果分析过程中遇到的问题和解决方法。
+实验环境在上学期相应的课程中已经完成了搭建，所以在搭建环境方面没有耗费很多时间。在最后进行数据填充时，开始使用的是Spark在0.x版本时期提出的MLlib库，
+出现了很多莫名奇妙的问题，比如过拟合无法通过增加正则项减轻，即使使用更大的惩罚项的参数，迭代更多次，效果依然不好；后来由于这是被废弃的API，
+所以换用回Spark在2.x时期的ML库中的相关函数，问题就得到了解决。
 % \appendix
 
 % \section{源代码}
