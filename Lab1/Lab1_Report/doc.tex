@@ -1,0 +1,173 @@
+\documentclass{ML}
+% \setminted{fontsize=\scriptsize,baselinestretch=1}
+\newminted{text}{frame=lines,framesep=2mm,fontsize=\scriptsize}
+\newminted{python}{frame=lines, framesep=2mm, linenos}
+% 姓名，学号
+\infoauthor{朱明彦}{1160300314}
+
+% 课程类型，实验名称
+\infoexp{课程类型}{实验一}
+
+\infoschool{计算机学院}{杨东华、王金宝}
+
+\begin{document}
+\maketitle
+
+% \tableofcontents
+\newpage
+
+\begin{center}
+    \textbf{\zihao{3} 实验一 \  数据预处理}
+\end{center}
+
+\section{实验目的}
+掌握数据预处理的步骤和方法，包括数据抽样、数据过滤、数据标准化和归一化、数据清洗。理解数据预处理在各个步骤在大数据环境下的实现方式。
+
+\section{实验环境}
+\begin{itemize}
+    \item Ubuntu 16.04.5
+    \item Hadoop 2.7.7 伪分布配置
+    \item Spark 2.4.0
+\end{itemize}
+\section{实验过程及结果}
+% 对于实验内容3.1-3.4，请结合您的程序描述实验中各个数据预处理步骤的详细操作，
+% 并说明每一步的输入和输出，包括输入输出数据的内容、格式等信息。
+\subsection{数据抽样}
+\paragraph{输入}数据样式如下，共$4783614$条数据，分层抽样比例$1\%$
+% frame=lines 分割线
+% linenos 行号
+\begin{textcode}
+144552912|9.349849|56.740876|17.052772|2011/06/27|18.5℃|83.91|38267|1974-06-08|Switzerland|programmer|5042
+144552912|9.350188|56.740679|17.614840|2016-10-08|37.8℉|78.80|1205|1991-04-14|Italy|teacher|1705
+144552912|9.350549|56.740544|18.083536|2010/05/19|14.0℃|80.73|28343|May 25,1989|Luxembourg|farmer|3208
+144552912|9.350806|56.740485|18.279465|2014/10/19|2.6℃|80.52|36251|August 25,1992|Belgium|programmer|2565
+144552912|9.351053|56.740486|18.422974|2017/12/10|1.2℃|77.90|27133|1992/03/25|Belgium|doctor|2455
+144552912|9.351475|56.740502|19.124889|2018-12-01|26.2℉|82.83|25448|July 21,1997|France|Manager|2943
+144552912|9.352127|56.740558|19.590593|April 18,2010|38.2℉|82.93|34087|1991/01/23|Germany|Manager|2984
+144552912|9.352420|56.740597|19.621764|2016-01-09|-0.8℃|83.51|18577|April 21,1980|Denmark|programmer|3951
+144552912|9.352584|56.740629|19.659931|2014-12-15|29.2℉|79.92|25939|1972/11/28|Holland|farmer|2208
+144552912|9.352726|56.740663|19.490670|2013/11/05|-8.1℃|77.75|15206|1987-12-22|Italy|accountant|1788
+\end{textcode}
+\paragraph{输出}数据样式未变，如上面所示；抽样后的结果共有$47737$条数据。
+\paragraph{抽样方法} 首先统计用于分层变量的\texttt{user\_carrer}所有可能的取值，并将所有的职业对应的分层比均置为$1\%$，利用分层抽样的思想即可抽得上述样本，具体如下代码所示。
+\begin{pythoncode}
+def parse(x):
+    return x.split("|")
+    
+origin_record = sc.textFile("hdfs://.../input/large_data.txt").map(parse)
+sample_record = origin_record.map(lambda x: (x[10], x))\
+    .sampleByKey(False, dic, seed=seed).map(lambda x: x[1])
+sample_record.map(lambda x: "|".join(x)).coalesce(1).saveAsTextFile("D_Sample")
+\end{pythoncode}
+\subsection{数据过滤}
+\paragraph{输入} 有两个部分，其一为抽样结果\texttt{D\_Sample}，共$47737$条数据；其二为原始数据即\texttt{D}，共$4783614$条数据。
+\paragraph{输出} 过滤筛选掉\texttt{longitude}不在$[8.1461259, 11.1993265]$，\texttt{latitude}不在$[56.5824856, 57.750511]$以及\texttt{rating}在前$1\%$和后$1\%$的无效数据，得到的结果共$4689245$条数据，
+即\texttt{D\_Filtered}。
+\paragraph{过滤方法} 将抽样数据\texttt{D\_Sample}按照\texttt{rating}进行排序，并提取前$1\%$以及后$1\%$对应的临界值，将提取后的临界值与经纬度坐标的范围同时作为过滤条件，对原始数据\texttt{D}进行过滤即可，具体见代码。
+\begin{pythoncode}
+def filter_func(x):
+    lng = float(x[1])
+    lat = float(x[2])
+    ans1 = longitude[0] <= lng <= longitude[1]
+    ans2 = latitude[0] <= lat <= latitude[1]
+    ans3 = x[6] == '?' or (limit[0] <= float(x[6]) <= limit[1])
+    return ans1 and ans2 and ans3
+
+filtered_record_temp = sample_record.sortBy(lambda x: x[6]).collect()
+length = len(filtered_record_temp)
+outliers = length // 100
+limit = float(filtered_record_temp[outliers][6]), 
+            float(filtered_record_temp[-outliers][6])
+filtered_record = origin_record.filter(filter_func)
+filtered_record.map(lambda x: "|".join(x)).coalesce(1).saveAsTextFile("D_filtered")
+\end{pythoncode}
+\subsection{数据标准化和归一化}
+\paragraph{输入} 经过过滤后的数据\texttt{D\_Filtered}，数据格式如下
+\begin{textcode}
+144552912|9.349849|56.740876|17.052772|2011/06/27|18.5℃|83.91|38267|1974-06-08|Switzerland|programmer|5042
+144552912|9.350188|56.740679|17.614840|2016-10-08|37.8℉|78.80|1205|1991-04-14|Italy|teacher|1705
+144552912|9.350549|56.740544|18.083536|2010/05/19|14.0℃|80.73|28343|May 25,1989|Luxembourg|farmer|3208
+144552912|9.350806|56.740485|18.279465|2014/10/19|2.6℃|80.52|36251|August 25,1992|Belgium|programmer|2565
+144552912|9.351053|56.740486|18.422974|2017/12/10|1.2℃|77.90|27133|1992/03/25|Belgium|doctor|2455
+144552912|9.351475|56.740502|19.124889|2018-12-01|26.2℉|82.83|25448|July 21,1997|France|Manager|2943
+144552912|9.352127|56.740558|19.590593|April 18,2010|38.2℉|82.93|34087|1991/01/23|Germany|Manager|2984
+144552912|9.352420|56.740597|19.621764|2016-01-09|-0.8℃|83.51|18577|April 21,1980|Denmark|programmer|3951
+144552912|9.352584|56.740629|19.659931|2014-12-15|29.2℉|79.92|25939|1972/11/28|Holland|farmer|2208
+144552912|9.352726|56.740663|19.490670|2013/11/05|-8.1℃|77.75|15206|1987-12-22|Italy|accountant|1788
+\end{textcode}
+\paragraph{输出} 将数据中温度的单位统一为\texttt{℃}，并且统一所有日期的格式为\texttt{YYYY-MM-DD}，将\texttt{rating}数据归一化，最终结果数据格式如下
+\begin{textcode}
+144552912|9.349849|56.740876|17.052772|2011-06-27|18.5℃|0.67|38267|1974-06-08|Switzerland|programmer|5042
+144552912|9.350188|56.740679|17.614840|2016-10-08|20.0℃|0.53|1205|1991-04-14|Italy|teacher|1705
+144552912|9.350549|56.740544|18.083536|2010-05-19|14.0℃|0.58|28343|1989-05-25|Luxembourg|farmer|3208
+144552912|9.350806|56.740485|18.279465|2014-10-19|2.6℃|0.57|36251|1992-08-25|Belgium|programmer|2565
+144552912|9.351053|56.740486|18.422974|2017-12-10|1.2℃|0.50|27133|1992-03-25|Belgium|doctor|2455
+144552912|9.351475|56.740502|19.124889|2018-12-01|8.4℃|0.64|25448|1997-07-21|France|Manager|2943
+144552912|9.352127|56.740558|19.590593|2010-04-18|20.4℃|0.64|34087|1991-01-23|Germany|Manager|2984
+144552912|9.352420|56.740597|19.621764|2016-01-09|-0.8℃|0.66|18577|1980-04-21|Denmark|programmer|3951
+144552912|9.352584|56.740629|19.659931|2014-12-15|11.4℃|0.56|25939|1972-11-28|Holland|farmer|2208
+144552912|9.352726|56.740663|19.490670|2013-11-05|-8.1℃|0.50|15206|1987-12-22|Italy|accountant|1788
+\end{textcode}
+\paragraph{数据标准化和归一化方法} 简单利用规则进行\texttt{Map}即可，注意华氏度和摄氏度的转化方法以及日期的不同格式，具体见代码如下，其中第29行判断的是华氏度符号是否存在，此处显示有误。
+\begin{pythoncode}
+def time_temp_parse(x):
+    standard_time_format = "%Y-%m-%d"
+    unstandard_format = "%Y/%m/%d"
+    unstandard_format_2 = "%B %d,%Y"
+    review_date = x[4]
+
+    temperature = x[5]
+    review_date_time = None
+    if '/' in review_date:
+        review_date_time = datetime.strptime(review_date, unstandard_format)
+        review_date = review_date_time.strftime(standard_time_format)
+    elif ',' in review_date:
+        review_date_time = datetime.strptime(review_date, unstandard_format_2)
+        review_date = review_date_time.strftime(standard_time_format)
+    x[4] = review_date
+
+    user_birthday = x[8]
+    user_birthday_time = None
+    if '/' in user_birthday:
+        user_birthday_time = datetime.strptime(
+            user_birthday, unstandard_format)
+        user_birthday = user_birthday_time.strftime(standard_time_format)
+    elif ',' in user_birthday:
+        user_birthday_time = datetime.strptime(
+            user_birthday, unstandard_format_2)
+        user_birthday = user_birthday_time.strftime(standard_time_format)
+    x[8] = user_birthday
+
+    if '℉' in temperature:
+        temperature = "%.1f" % (float(temperature[:-1]) - 32 / 1.8) + "℃"
+        x[5] = temperature
+
+    rating = "%.2f" % ((float(x[6]) - limit[0]) / (limit[1] - limit[0]))\
+                         if x[6] != "?" else x[6]
+    x[6] = rating
+    return x
+normalization_record = filtered_record.map(time_temp_parse)
+\end{pythoncode}
+\subsection{数据清洗}
+\paragraph{输入} 经过数据标准化和归一化之后的结果，经过统计共缺少$9444$个不同的信息，查询的方式如下面的\texttt{Shell}命令。
+\begin{minted}{Shell}
+    cat D_Filtered/part-* | grep "?" | wc -l 
+\end{minted}
+\paragraph{输出} 将所有的缺失信息进行填充之后的结果，即\texttt{D\_Preprocessed}。
+\paragraph{数据填充方法} 主要分为以下两步，分别用于填充\texttt{user\_income}和\texttt{rating}。
+\begin{enumerate}
+    \item 根据\texttt{user\_career}和\texttt{user\_nationlity}进行分组，将每个分组的薪资\texttt{user\_income}平均值作为具有同样国籍和职业但缺失薪资的元组的填充值。
+    \item 将根据第一步填充好的结果，利用机器学习中线性回归的方式和未缺失\texttt{rating}的数据中\texttt{longitude, latitude, altitude, user\_income}学习到相关的模型，对相应缺失值进行预测。
+\end{enumerate}
+\section{实验心得}
+可以分享您在实验环境搭建、程序编写和调试以及结果分析过程中遇到的问题和解决方法。
+% \appendix
+
+% \section{源代码}
+% \section{参考文献}
+% \begin{thebibliography}{20}
+    % \bibitem{employee_name} 中国最常见名字前50名, \texttt{https://www.sohu.com/a/164406113\_367620}
+    % \bibitem{employee_id} 身份证号在线生成器, \texttt{https://www.tinysoft.org/}
+% \end{thebibliography}
+
+\end{document}

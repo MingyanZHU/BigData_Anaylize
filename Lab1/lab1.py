@@ -17,8 +17,7 @@ coefficients = np.array([0.04071767126456369, -0.0003407797949423353, 0.00448242
 
 
 def parse(x):
-    ans = x.split("|")
-    return ans
+    return x.split("|")
 
 
 def filter_func(x):
