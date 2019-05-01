@@ -1,6 +1,7 @@
 package lr;
 
 
+import classify.NaiveBayesReducer;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
@@ -47,8 +48,6 @@ public class LogisticRegression {
                     beta[index] = value;
                 }
             }
-            System.out.println(">>>>>>>>>" + iteration);
-            System.out.println(Arrays.toString(beta));
             for (int i = 0; i < featuresNumber + 1; i++) {
                 configuration.setDouble("beta." + i, beta[i]);
             }
@@ -67,6 +66,36 @@ public class LogisticRegression {
             FileOutputFormat.setOutputPath(job, new Path(args[1] + "_m_" + iteration));
 
             job.waitForCompletion(true);
+
+            // Test acc
+            Job test = Job.getInstance(configuration);
+            test.setJarByClass(LogisticRegression.class);
+            test.setJobName("LR Test");
+            test.setMapperClass(LogisticRegressionTestMapper.class);
+            test.setReducerClass(NaiveBayesReducer.class);
+            test.setOutputValueClass(IntWritable.class);
+            test.setOutputKeyClass(IntWritable.class);
+            FileInputFormat.addInputPath(test, new Path(args[0]));
+            FileOutputFormat.setOutputPath(test, new Path(args[2] + "_m_" + iteration));
+
+            test.waitForCompletion(true);
+            String uri = args[2] + "_m_" + iteration + "/part-r-00000";
+            Configuration fileConf = new Configuration();
+            FileSystem fileSystem = FileSystem.get(URI.create(uri), fileConf);
+            Path inputPath = new Path(uri);
+            FSDataInputStream inputStream = fileSystem.open(inputPath);
+            int correctNumber = 0;
+            int totalNumber = 0;
+            for (int i = 0; i < 2; i++) {
+                String line = inputStream.readLine();
+                String [] values = line.split("\t");
+                correctNumber += Integer.parseInt(values[1]);
+                totalNumber += (Integer.parseInt(values[1]) + Integer.parseInt(values[2]));
+            }
+
+            System.out.println(">>>>>>>>>" + iteration);
+            System.out.println("Acc: " + ((double) correctNumber / totalNumber) + "%");
+            System.out.println(Arrays.toString(beta));
 
             iteration++;
         } while (iteration < maxIteration && diff > epsilon);
