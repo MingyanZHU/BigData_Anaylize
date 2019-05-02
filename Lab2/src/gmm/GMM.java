@@ -73,6 +73,9 @@ public class GMM {
         gmm.setOutputKeyClass(IntWritable.class);
         gmm.setOutputValueClass(Text.class);
 
+        x = 16 * 1024 * 1024;
+        FileInputFormat.setMaxInputSplitSize(gmm, x);
+        FileInputFormat.setMinInputSplitSize(gmm, x);
         FileInputFormat.addInputPath(gmm, new Path(args[0]));
         FileOutputFormat.setOutputPath(gmm, new Path(args[2]));
         gmm.waitForCompletion(true);

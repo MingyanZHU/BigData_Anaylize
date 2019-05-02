@@ -12,11 +12,11 @@ public class GMMInitReducer extends Reducer<IntWritable, Text, IntWritable, Text
     protected void reduce(IntWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
         Configuration configuration = context.getConfiguration();
         int k = configuration.getInt("gmm.num.mix", 8);
-//        int featuresNumber = configuration.getInt("gmm.features.number", 69);
+        int featuresNumber = configuration.getInt("gmm.features.number", 68);
         // output order: pi, mu, sigma. delimited by tab
-        double[][] sigma = new double[k][k];
-        for (int i = 0; i < k; i++) {
-            for (int j = 0; j < k; j++) {
+        double[][] sigma = new double[featuresNumber][featuresNumber];
+        for (int i = 0; i < featuresNumber; i++) {
+            for (int j = 0; j < featuresNumber; j++) {
                 if (i == j)
                     sigma[i][j] = 1;
                 else
@@ -24,13 +24,13 @@ public class GMMInitReducer extends Reducer<IntWritable, Text, IntWritable, Text
             }
         }
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < k; i++) {
-            for (int j = 0; j < k; j++) {
+        for (int i = 0; i < featuresNumber; i++) {
+            for (int j = 0; j < featuresNumber; j++) {
                 sb.append(sigma[i][j]);
-                if (j != k - 1)
+                if (j != featuresNumber - 1)
                     sb.append(",");
             }
-            if (i != k - 1)
+            if (i != featuresNumber - 1)
                 sb.append(";");
         }
         int count = 0;
