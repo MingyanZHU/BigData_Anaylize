@@ -18,9 +18,9 @@ public class Kmeans {
     public static void main(String[] args) throws IOException, ClassNotFoundException, InterruptedException {
         // args length is 2, <input path> and <output path>
         int features = 69;
-        int k = 12; // according cmu 10-605 2015 Spring suggest K = 8 or K = 12
+        int k = 8; // according cmu 10-605 2015 Spring suggest K = 8 or K = 12
         int maxIteration = 100;
-        double epsilon = 0.001;
+        double epsilon = 1e-6;
 
         int iteration = 0;
         String[] centerCoordinates = new String[k];
@@ -32,7 +32,7 @@ public class Kmeans {
         Job job1 = Job.getInstance(configuration);
 
         job1.setJarByClass(Kmeans.class);
-        job1.setJobName("Classic K-means");
+        job1.setJobName("Classic K-means Init");
 
         job1.setMapperClass(KmeansInitMapper.class);
         job1.setReducerClass(KmeansInitReducer.class);
@@ -89,19 +89,24 @@ public class Kmeans {
                 job2.setJarByClass(Kmeans.class);
                 job2.setMapperClass(KmeansMapper.class);
                 job2.setReducerClass(KmeansReducer.class);
-                job2.setJobName("Classic K-Means");
+                job2.setJobName("Classic K-Means Iteration " + iteration);
                 job2.setOutputKeyClass(IntWritable.class);
                 job2.setOutputValueClass(Text.class);
                 System.out.println(uri);
                 System.out.println(">>>>>>>>> WCSSE = " + wcsse);
+                System.out.println(">>>>>>>>> WCSSE change = " + Math.abs(wcsse - wcssePrevious) / Math.abs(wcssePrevious));
 
+                long x = 32 * 1024 * 1024;
+                job2.setNumReduceTasks(1);
+                FileInputFormat.setMaxInputSplitSize(job2, x);
+                FileInputFormat.setMinInputSplitSize(job2, x);
                 FileInputFormat.addInputPath(job2, new Path(args[0]));
                 FileOutputFormat.setOutputPath(job2, new Path(args[1] + "_m_" + iteration));
 
                 job2.waitForCompletion(true);
             }
             iteration++;
-        } while ((wcsse - wcssePrevious) > epsilon || iteration < maxIteration);
+        } while (Math.abs(wcsse - wcssePrevious) / Math.abs(wcssePrevious) > epsilon && iteration < maxIteration);
     }
 
 //    features number is 69.

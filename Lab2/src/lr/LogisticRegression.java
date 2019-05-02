@@ -19,7 +19,7 @@ import java.util.Arrays;
 
 public class LogisticRegression {
     public static void main(String[] args) throws IOException, ClassNotFoundException, InterruptedException {
-        double learningRate = 0.001;
+        double learningRate = 0.1;
         int featuresNumber = 18;
         int maxIteration = 100;
         int iteration = 0;
@@ -88,13 +88,15 @@ public class LogisticRegression {
             int totalNumber = 0;
             for (int i = 0; i < 2; i++) {
                 String line = inputStream.readLine();
+                if (line == null)
+                    continue;
                 String [] values = line.split("\t");
                 correctNumber += Integer.parseInt(values[1]);
                 totalNumber += (Integer.parseInt(values[1]) + Integer.parseInt(values[2]));
             }
 
             System.out.println(">>>>>>>>>" + iteration);
-            System.out.println("Acc: " + ((double) correctNumber / totalNumber) + "%");
+            System.out.println("Acc: " + ((double) correctNumber / totalNumber));
             System.out.println(Arrays.toString(beta));
 
             iteration++;

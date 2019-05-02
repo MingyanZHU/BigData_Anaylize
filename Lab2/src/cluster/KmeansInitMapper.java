@@ -6,6 +6,7 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Mapper;
 
 import java.io.IOException;
+import java.util.Random;
 
 public class KmeansInitMapper extends Mapper<Object, Text, IntWritable, Text> {
 
@@ -18,6 +19,7 @@ public class KmeansInitMapper extends Mapper<Object, Text, IntWritable, Text> {
 
     @Override
     public void run(Context context) throws IOException, InterruptedException {
+        Random random = new Random(17);
         Configuration configuration = context.getConfiguration();
 //        int k = Integer.parseInt(configuration.get("kmeans.k"));
         int k = configuration.getInt("kmeans.k", 8);
@@ -25,8 +27,10 @@ public class KmeansInitMapper extends Mapper<Object, Text, IntWritable, Text> {
         int count = 0;
         while (context.nextKeyValue()) {
             if (count < k) {
-                map(context.getCurrentKey(), context.getCurrentValue(), context);
+                if(random.nextInt(10) == 0){
                 count++;
+                map(context.getCurrentKey(), context.getCurrentValue(), context);
+                }
             } else break;
         }
     }

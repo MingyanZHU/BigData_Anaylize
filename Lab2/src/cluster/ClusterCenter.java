@@ -1,5 +1,3 @@
-package cluster;
-
 public class ClusterCenter {
     private final double[] coordinates;
 
