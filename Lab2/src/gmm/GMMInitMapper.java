@@ -23,10 +23,13 @@ public class GMMInitMapper extends Mapper<Object, Text, IntWritable, Text> {
         int count = 0;
         while (context.nextKeyValue()) {
             if (count < k) {
-                if (random.nextInt(10) == 0) {
-                    count++;
-                    map(context.getCurrentKey(), context.getCurrentValue(), context);
-                }
+                // Using K-means result
+                map(context.getCurrentKey(), context.getCurrentValue(), context);
+                count++;
+//                if (random.nextInt(10) == 0) {
+//                    count++;
+//                    map(context.getCurrentKey(), context.getCurrentValue(), context);
+//                }
             } else break;
         }
     }

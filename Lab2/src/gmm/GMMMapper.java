@@ -52,7 +52,10 @@ public class GMMMapper extends Mapper<Object, Text, IntWritable, Text> {
         }
 
         for (int i = 0; i < k; i++) {
-            context.write(new IntWritable(i), new Text(z_n_k[i] / sumZ_n_k + "\t" + xString));
+            double p = z_n_k[i] / sumZ_n_k;
+            if (Double.isNaN(p))
+                p = 0.0;
+            context.write(new IntWritable(i), new Text(p + "\t" + xString));
         }
     }
 }

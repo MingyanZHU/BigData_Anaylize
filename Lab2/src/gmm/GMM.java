@@ -34,50 +34,57 @@ public class GMM {
         FileInputFormat.setMaxInputSplitSize(job, x);
         FileInputFormat.setMinInputSplitSize(job, y);
         FileInputFormat.addInputPath(job, new Path(args[0]));
-        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+        FileOutputFormat.setOutputPath(job, new Path(args[1] + "_m_0"));
 
         job.waitForCompletion(true);
 
-        String uri = args[1] + "/part-r-00000";
-        Configuration fileConf = new Configuration();
-        FileSystem fileSystem = FileSystem.get(URI.create(uri), fileConf);
-        Path inputPath = new Path(uri);
-        FSDataInputStream inputStream = fileSystem.open(inputPath);
-        String[] mu = new String[numberMix];
-        String[] sigma = new String[numberMix];
-        double[] pi = new double[numberMix];
+        int iteration = 1;
+        int MAX_ITERATION = 20;
 
-        for (int i = 0; i < numberMix; i++) {
-            String line = inputStream.readLine();
-            String[] temp = line.split("\t");
-            pi[i] = Double.parseDouble(temp[1]);
-            mu[i] = temp[2];
-            sigma[i] = temp[3];
+        while (iteration < MAX_ITERATION) {
+            String uri = args[1] + "_m_" + (iteration - 1) + "/part-r-00000";
+            Configuration fileConf = new Configuration();
+            FileSystem fileSystem = FileSystem.get(URI.create(uri), fileConf);
+            Path inputPath = new Path(uri);
+            FSDataInputStream inputStream = fileSystem.open(inputPath);
+            String[] mu = new String[numberMix];
+            String[] sigma = new String[numberMix];
+            double[] pi = new double[numberMix];
+
+            for (int i = 0; i < numberMix; i++) {
+                String line = inputStream.readLine();
+                String[] temp = line.split("\t");
+                pi[i] = Double.parseDouble(temp[1]);
+                mu[i] = temp[2];
+                sigma[i] = temp[3];
+            }
+
+            Configuration gmmConf = new Configuration();
+
+            for (int i = 0; i < numberMix; i++) {
+                gmmConf.set("gmm.sigma." + i, sigma[i]);
+                gmmConf.set("gmm.mu." + i, mu[i]);
+                gmmConf.setDouble("gmm.pi." + i, pi[i]);
+            }
+            gmmConf.setInt("gmm.num.mix", numberMix);
+            gmmConf.setInt("gmm.features.number", featuresNumber);
+
+            Job gmm = Job.getInstance(gmmConf);
+            gmm.setJarByClass(GMM.class);
+            gmm.setJobName("GMM " + iteration);
+            gmm.setMapperClass(GMMMapper.class);
+            // TODO 迭代一轮后的协方差矩阵为奇异矩阵
+            gmm.setReducerClass(GMMReducer.class);
+            gmm.setOutputKeyClass(IntWritable.class);
+            gmm.setOutputValueClass(Text.class);
+
+            x = 16 * 1024 * 1024;
+            FileInputFormat.setMaxInputSplitSize(gmm, x);
+            FileInputFormat.setMinInputSplitSize(gmm, x);
+            FileInputFormat.addInputPath(gmm, new Path(args[2]));
+            FileOutputFormat.setOutputPath(gmm, new Path(args[1] + "_m_" + iteration));
+            gmm.waitForCompletion(true);
+            iteration++;
         }
-
-        Configuration gmmConf = new Configuration();
-
-        for (int i = 0; i < numberMix; i++) {
-            gmmConf.set("gmm.sigma." + i, sigma[i]);
-            gmmConf.set("gmm.mu." + i, mu[i]);
-            gmmConf.setDouble("gmm.pi." + i, pi[i]);
-        }
-        gmmConf.setInt("gmm.num.mix", numberMix);
-        gmmConf.setInt("gmm.features.number", featuresNumber);
-
-        Job gmm = Job.getInstance(gmmConf);
-        gmm.setJarByClass(GMM.class);
-        gmm.setJobName("GMM");
-        gmm.setMapperClass(GMMMapper.class);
-        gmm.setReducerClass(GMMReducer.class);
-        gmm.setOutputKeyClass(IntWritable.class);
-        gmm.setOutputValueClass(Text.class);
-
-        x = 16 * 1024 * 1024;
-        FileInputFormat.setMaxInputSplitSize(gmm, x);
-        FileInputFormat.setMinInputSplitSize(gmm, x);
-        FileInputFormat.addInputPath(gmm, new Path(args[0]));
-        FileOutputFormat.setOutputPath(gmm, new Path(args[2]));
-        gmm.waitForCompletion(true);
     }
 }
