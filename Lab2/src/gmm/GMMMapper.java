@@ -48,6 +48,8 @@ public class GMMMapper extends Mapper<Object, Text, IntWritable, Text> {
 
         for (int i = 0; i < k; i++) {
             z_n_k[i] = Utils.gaussian(x, mu[i], sigma[i]) * pi[i];
+            if(Double.isNaN(z_n_k[i]))
+                z_n_k[i] = 0.0;
             sumZ_n_k += z_n_k[i];
         }
 
