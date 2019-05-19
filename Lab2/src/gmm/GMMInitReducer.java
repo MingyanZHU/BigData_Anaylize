@@ -18,7 +18,7 @@ public class GMMInitReducer extends Reducer<IntWritable, Text, IntWritable, Text
         for (int i = 0; i < featuresNumber; i++) {
             for (int j = 0; j < featuresNumber; j++) {
                 if (i == j)
-                    sigma[i][j] = 1;
+                    sigma[i][j] = 0.1;
                 else
                     sigma[i][j] = 0;
             }

@@ -1,5 +1,6 @@
 package gmm;
 
+import org.apache.commons.math3.linear.LUDecomposition;
 import org.apache.commons.math3.linear.MatrixUtils;
 import org.apache.commons.math3.linear.RealMatrix;
 import org.apache.commons.math3.linear.RealVector;
@@ -51,6 +52,12 @@ public class GMMReducer extends Reducer<IntWritable, Text, IntWritable, Text> {
         for (int i = 0; i < count; i++) {
             RealMatrix xMatrix = MatrixUtils.createRealMatrix(new double[][]{Utils.getMuFromString(xList.get(i))});
             sigma_k_matrix = sigma_k_matrix.add(((xMatrix.subtract(mu_k_matrix)).transpose().multiply((xMatrix.subtract(mu_k_matrix)))).scalarMultiply(z_n_k.get(i)));
+        }
+        if (Math.abs(new LUDecomposition(sigma_k_matrix).getDeterminant()) < 1e-4) {
+            // Avoid singular matrix
+            double[] bias = new double[featuresNumber];
+            Arrays.fill(bias, 1e-4);
+            sigma_k_matrix = sigma_k_matrix.add(MatrixUtils.createRealDiagonalMatrix(bias));
         }
         sigma_k = sigma_k_matrix.scalarMultiply(1.0 / sumZ_n_k).getData();
 
