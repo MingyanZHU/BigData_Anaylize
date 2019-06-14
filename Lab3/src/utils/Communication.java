@@ -1,29 +1,26 @@
 package utils;
 
+import message.IntMessage;
+import message.Message;
+
 import java.util.LinkedList;
 import java.util.Queue;
 
-public class Communication<V> {
+public class Communication<V extends Message> {
     private final Queue<V> receiveQueue_1, receiveQueue_2, sendQueue;
-    private boolean lastQueueIsReceiveQueue_1;
 
     public Communication() {
-        lastQueueIsReceiveQueue_1 = true;
         receiveQueue_1 = new LinkedList<>();
         receiveQueue_2 = new LinkedList<>();
         sendQueue = new LinkedList<>();
     }
 
-    public V getMessageValueFromLastQueue() {
+    public V getMessageValueFromLastQueue(int superStep) {
         V ans;
-        if (lastQueueIsReceiveQueue_1 && !receiveQueue_1.isEmpty()) {
+        if (superStep % 2 == 0 && !receiveQueue_1.isEmpty()) {
             ans = receiveQueue_1.poll();
-            if (receiveQueue_1.isEmpty())
-                lastQueueIsReceiveQueue_1 = false;
-        } else if (!lastQueueIsReceiveQueue_1 && !receiveQueue_2.isEmpty()) {
+        } else if (superStep % 2 == 1 && !receiveQueue_2.isEmpty()) {
             ans = receiveQueue_2.poll();
-            if (receiveQueue_2.isEmpty())
-                lastQueueIsReceiveQueue_1 = true;
         } else {
             return null;
         }
@@ -41,8 +38,8 @@ public class Communication<V> {
         return sendQueue.add(message);
     }
 
-    public void clearLastReceiveQueue() {
-        if (lastQueueIsReceiveQueue_1)
+    public void clearLastReceiveQueue(int superStep) {
+        if (superStep % 2 == 0)
             receiveQueue_1.clear();
         else
             receiveQueue_2.clear();

@@ -1,16 +1,24 @@
 package vertex;
 
+import message.Message;
+
+import java.util.Queue;
+
 public abstract class Vertex<L> {
     // L顶点属性的泛型
     private String vertexID;
     private L vertexValue;
+    private boolean active;
+    private int superStep;
 
     public Vertex(String vertexID, L vertexValue) {
         this.vertexID = vertexID;
         this.vertexValue = vertexValue;
+        this.active = true;
+        this.superStep = 0;
     }
 
-    public abstract void compute();
+    public abstract void compute(Queue<Message> messages);
 
     public String getVertexID() {
         return vertexID;
@@ -24,11 +32,28 @@ public abstract class Vertex<L> {
         this.vertexValue = vertexValue;
     }
 
-    public void setActive() {
+    public void voteToHalt() {
+        this.active = false;
     }
 
+    public void voteToStart() {
+        this.active = true;
+    }
 
-    // 判断两个Vertex实例是否相等与其当前的状态无关
+    public boolean isActive() {
+        return active;
+    }
+
+    public int getSuperStep() {
+        return superStep;
+    }
+
+    public void superStepPlus() {
+        this.superStep++;
+    }
+
+    public abstract Message sendTo(String vertexID, Object value);
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -36,15 +61,12 @@ public abstract class Vertex<L> {
 
         Vertex<?> vertex = (Vertex<?>) o;
 
-        if (!getVertexID().equals(vertex.getVertexID())) return false;
-        return getVertexValue().equals(vertex.getVertexValue());
+        return getVertexID().equals(vertex.getVertexID());
 
     }
 
     @Override
     public int hashCode() {
-        int result = getVertexID().hashCode();
-        result = 31 * result + getVertexValue().hashCode();
-        return result;
+        return getVertexID().hashCode();
     }
 }

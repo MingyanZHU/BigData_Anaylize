@@ -1,18 +1,16 @@
 package edge;
 
-import vertex.Vertex;
-
-public class Edge<L, E> {
+public class Edge<E> {
     // E是边的属性泛型, L是顶点的属性泛型
-    private Vertex<L> destinationVertex;
+    private String destinationVertex;
     private E edgeValue;
 
-    public Edge(Vertex<L> destinationVertex, E edgeValue) {
+    public Edge(String destinationVertex, E edgeValue) {
         this.destinationVertex = destinationVertex;
         this.edgeValue = edgeValue;
     }
 
-    public Vertex<L> getDestinationVertex() {
+    public String getDestinationVertex() {
         return destinationVertex;
     }
 
