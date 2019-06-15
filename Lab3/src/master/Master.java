@@ -8,17 +8,17 @@ import java.io.*;
 import java.util.*;
 
 public abstract class Master<L, E, V extends Message> {
-    public static final int RANDOM_SEED = 1;
-    public static final String partitionFilePath = "./partitions/";
-    protected boolean finished;
-    protected final List<String> workersList;
-    protected final Map<String, Worker<L, E, V>> workers;
-    protected final Map<String, Boolean> nextStepWakeUpWorkers;
-    protected final Map<String, Communication<V>> vertexCommunication;
-    protected final Map<String, Set<String>> outEdges;
-    protected List<Map<String, Set<String>>> cuts;
+    static final int RANDOM_SEED = 1;
+    static final String partitionFilePath = "./partitions/";
+    boolean finished;
+    final List<String> workersList;
+    final Map<String, Worker<L, E, V>> workers;
+    final Map<String, Boolean> nextStepWakeUpWorkers;
+    private final Map<String, Communication<V>> vertexCommunication;
+    private final Map<String, Set<String>> outEdges;
+    private List<Map<String, Set<String>>> cuts;
 
-    public Master() {
+    Master() {
         this.finished = false;
         this.workers = new HashMap<>();
         this.workersList = new ArrayList<>();

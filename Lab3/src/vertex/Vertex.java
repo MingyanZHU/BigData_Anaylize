@@ -53,10 +53,6 @@ public abstract class Vertex<L, V extends Message> {
         this.superStep = superStep;
     }
 
-//    public void superStepPlus() {
-//        this.superStep++;
-//    }
-
     public abstract V sendTo(String vertexID, Object value);
 
     @Override

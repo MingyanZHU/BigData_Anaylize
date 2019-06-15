@@ -14,10 +14,6 @@ public class SSSPVertex extends Vertex<Integer, IntMessage> {
 
     @Override
     public void compute(Queue<IntMessage> messages) {
-//        if (messages.isEmpty()) {
-//            voteToHalt();
-//            return;
-//        }
         boolean update = false;
         while (!messages.isEmpty()) {
             IntMessage message = messages.poll();
@@ -25,10 +21,12 @@ public class SSSPVertex extends Vertex<Integer, IntMessage> {
             if (minDis < getVertexValue()) {
                 setVertexValue(minDis);
                 update = true;
-                System.out.println(getVertexID() + "\t" + getVertexValue());
+//                System.out.println(getVertexID() + "\t" + getVertexValue());
             }
         }
-        if (!update)
+        if (update)
+            voteToStart();
+        else
             voteToHalt();
     }
 

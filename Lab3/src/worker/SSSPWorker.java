@@ -4,12 +4,11 @@ import combiner.Combiner;
 import edge.Edge;
 import master.Master;
 import message.IntMessage;
-import utils.Communication;
 import vertex.SSSPVertex;
 import vertex.Vertex;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class SSSPWorker extends Worker<Integer, Integer, IntMessage> {
     public SSSPWorker(Master<Integer, Integer, IntMessage> master, String id) {
@@ -17,7 +16,7 @@ public class SSSPWorker extends Worker<Integer, Integer, IntMessage> {
         this.working = false;
     }
 
-    public SSSPWorker(Master<Integer, Integer, IntMessage> master, String id, Combiner combiner) {
+    public SSSPWorker(Master<Integer, Integer, IntMessage> master, String id, Combiner<IntMessage> combiner) {
         super(master, id, combiner);
         this.working = false;
     }
@@ -25,36 +24,50 @@ public class SSSPWorker extends Worker<Integer, Integer, IntMessage> {
     @Override
     public void addVertexIntoWorker(String vertexID, List<Edge<Integer>> out) {
         Vertex<Integer, IntMessage> vertex = new SSSPVertex(vertexID, SSSPVertex.INF);
-        this.vertices.put(vertexID, vertex);
-        this.outEdges.put(vertexID, new ArrayList<>(out));
-        Communication<IntMessage> communication = new Communication<>();
-        this.vertexCommunication.put(vertexID, communication);
-        this.master.addVertexCommunication(vertexID, communication);
+        naiveAddVertexIntoWorker(vertexID, vertex, out);
     }
 
     @Override
     public void run(int superStep) {
+        long timeStart, timeEnd;
+        int communicationNumber = 0;
+        timeStart = System.currentTimeMillis();
         if (working) {
             working = false;
             for (String vertexID : this.vertices.keySet()) {
                 Vertex<Integer, IntMessage> vertex = this.getVertex(vertexID);
-                if (vertex.isActive()) {
+                if (!this.master.getCommunicationFromVertex(vertexID).getMessagesFromLastQueue(superStep).isEmpty()) {
+                    vertex.setSuperStep(superStep);
+                    vertex.compute(master.getCommunicationFromVertex(vertexID).getMessagesFromLastQueue(superStep));
+                }
+                if (vertex.isActive())
                     working = true;
-                } else if (!this.master.getCommunicationFromVertex(vertexID).getMessagesFromLastQueue(superStep).isEmpty()) {
-                    working = true;
-                    vertex.voteToStart();
-                } else
+                else
                     continue;
-                vertex.compute(master.getCommunicationFromVertex(vertexID).getMessagesFromLastQueue(superStep));
-                vertex.setSuperStep(superStep);
-//                vertex.voteToHalt();
                 for (Edge<Integer> outEdge : this.outEdges.get(vertexID)) {
                     IntMessage message = vertex.sendTo(outEdge.getDestinationVertex(),
                             outEdge.getEdgeValue() + vertex.getVertexValue());
-                    this.master.getCommunicationFromVertex(outEdge.getDestinationVertex()).addMessageIntoQueue(message, superStep + 1);
                     this.master.wakeUpNextStep(outEdge.getDestinationVertex());
+                    if (this.combiner == null) {
+                        communicationNumber++;
+                        this.master.getCommunicationFromVertex(outEdge.getDestinationVertex()).addMessageIntoQueue(message, superStep + 1);
+                    } else {
+                        this.combiner.combine(outEdge.getDestinationVertex(), message);
+                    }
                 }
+                vertex.voteToHalt();
             }
         }
+        if (this.combiner != null) {
+            for (Map.Entry<String, IntMessage> entry : this.combiner.getCombineMessages().entrySet()) {
+                communicationNumber++;
+                this.master.getCommunicationFromVertex(entry.getKey()).addMessageIntoQueue(entry.getValue(), superStep + 1);
+            }
+            this.combiner.clear();
+        }
+        timeEnd = System.currentTimeMillis();
+        this.statistician.setCommunicationNumber(communicationNumber);
+        this.statistician.setSuperStep(superStep);
+        this.statistician.setTimeUsed((timeEnd - timeStart) / 1000.0);
     }
 }

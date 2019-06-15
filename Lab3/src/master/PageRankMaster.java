@@ -1,16 +1,16 @@
 package master;
 
 import edge.Edge;
-import message.IntMessage;
+import message.DoubleMessage;
 import worker.Worker;
 
 import java.io.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
 
-public class SSSPMaster extends Master<Integer, Integer, IntMessage> {
-    private static final String startNodeIndex = "0";
-    private Worker<Integer, Integer, IntMessage> startNodeWorker = null;
-
+public class PageRankMaster extends Master<Double, Double, DoubleMessage> {
     @Override
     public void loadFromFile() throws IOException {
         int fileIndex = 0;
@@ -26,15 +26,13 @@ public class SSSPMaster extends Master<Integer, Integer, IntMessage> {
             String line;
             while ((line = bufferedReader.readLine()) != null) {
                 String[] nodes = line.split("\t");
-                Worker<Integer, Integer, IntMessage> randomWorker = workers.get(workersList.get(random.nextInt(workersList.size())));
-                if (nodes[0].equals(startNodeIndex))
-                    startNodeWorker = randomWorker;
+                Worker<Double, Double, DoubleMessage> randomWorker = workers.get(workersList.get(random.nextInt(workersList.size())));
                 if (nodes.length == 1) {
                     randomWorker.addVertexIntoWorker(nodes[0], Collections.emptyList());
                 } else {
-                    List<Edge<Integer>> edges = new ArrayList<>();
+                    List<Edge<Double>> edges = new ArrayList<>();
                     for (int i = 1; i < nodes.length; i++) {
-                        edges.add(new Edge<>(nodes[i], 1));
+                        edges.add(new Edge<>(nodes[i], 1.0));
                     }
                     randomWorker.addVertexIntoWorker(nodes[0], edges);
                 }
@@ -44,23 +42,13 @@ public class SSSPMaster extends Master<Integer, Integer, IntMessage> {
 
     @Override
     public void run() {
-//        System.out.println(startNodeWorker.getId());
-//        System.out.println(workersList.size());
-//        System.out.println(workers.size());
-
-        if (startNodeWorker == null)
-            return;
-        startNodeWorker.setWorking(true);
-        startNodeWorker.getVertex(startNodeIndex).voteToStart();
-        startNodeWorker.getVertex(startNodeIndex).setVertexValue(0);
-
         int superStep = 0;
         while (!this.finished) {
             this.finished = true;
             System.out.println(superStep);
 
             for (String workerID : this.workersList) {
-                Worker<Integer, Integer, IntMessage> worker = workers.get(workerID);
+                Worker<Double, Double, DoubleMessage> worker = workers.get(workerID);
                 if (worker.isWorking())
                     this.finished = false;
                 else

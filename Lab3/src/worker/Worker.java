@@ -5,6 +5,7 @@ import edge.Edge;
 import master.Master;
 import message.Message;
 import utils.Communication;
+import utils.Statistician;
 import vertex.Vertex;
 
 import java.util.ArrayList;
@@ -14,29 +15,32 @@ import java.util.Map;
 
 public abstract class Worker<L, E, V extends Message> {
     private final String id;
-    protected final Map<String, Vertex<L, V>> vertices;
-    protected final Map<String, List<Edge<E>>> outEdges;
-    protected final Map<String, Communication<V>> vertexCommunication;
-    protected Combiner combiner;
-    protected Master<L, E, V> master;
-    protected boolean working = true;
+    final Map<String, Vertex<L, V>> vertices;
+    final Map<String, List<Edge<E>>> outEdges;
+    final Map<String, Communication<V>> vertexCommunication;
+    Combiner<V> combiner;
+    Statistician statistician;
+    Master<L, E, V> master;
+    boolean working = true;
 
-    public Worker(Master<L, E, V> master, String id) {
+    Worker(Master<L, E, V> master, String id) {
         this.master = master;
         this.id = id;
         this.vertices = new HashMap<>();
         this.outEdges = new HashMap<>();
         this.vertexCommunication = new HashMap<>();
         this.combiner = null;
+        this.statistician = new Statistician(vertices.size(), outEdges.size());
     }
 
-    public Worker(Master<L, E, V> master, String id, Combiner combiner) {
+    Worker(Master<L, E, V> master, String id, Combiner<V> combiner) {
         this.master = master;
         this.id = id;
         this.vertices = new HashMap<>();
         this.outEdges = new HashMap<>();
         this.vertexCommunication = new HashMap<>();
         this.combiner = combiner;
+        this.statistician = new Statistician(vertices.size(), outEdges.size());
     }
 
     public boolean isWorking() {
@@ -53,6 +57,20 @@ public abstract class Worker<L, E, V extends Message> {
 
     public Vertex<L, V> getVertex(String vertexID) {
         return this.vertices.get(vertexID);
+    }
+
+    public Statistician getStatistician() {
+        return statistician;
+    }
+
+    void naiveAddVertexIntoWorker(String vertexID, Vertex<L, V> vertex, List<Edge<E>> out) {
+        this.vertices.put(vertexID, vertex);
+        this.outEdges.put(vertexID, new ArrayList<>(out));
+        Communication<V> communication = new Communication<>();
+        this.vertexCommunication.put(vertexID, communication);
+        this.master.addVertexCommunication(vertexID, communication);
+        this.statistician.setVertexNumber(this.vertices.size());
+        this.statistician.setEdgeNumber(this.statistician.getEdgeNumber() + out.size());
     }
 
     public abstract void addVertexIntoWorker(String vertexID, List<Edge<E>> out);
