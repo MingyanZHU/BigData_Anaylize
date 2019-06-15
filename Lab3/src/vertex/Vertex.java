@@ -4,7 +4,7 @@ import message.Message;
 
 import java.util.Queue;
 
-public abstract class Vertex<L> {
+public abstract class Vertex<L, V extends Message> {
     // L顶点属性的泛型
     private String vertexID;
     private L vertexValue;
@@ -18,7 +18,7 @@ public abstract class Vertex<L> {
         this.superStep = 0;
     }
 
-    public abstract void compute(Queue<Message> messages);
+    public abstract void compute(Queue<V> messages);
 
     public String getVertexID() {
         return vertexID;
@@ -48,18 +48,23 @@ public abstract class Vertex<L> {
         return superStep;
     }
 
-    public void superStepPlus() {
-        this.superStep++;
+
+    public void setSuperStep(int superStep) {
+        this.superStep = superStep;
     }
 
-    public abstract Message sendTo(String vertexID, Object value);
+//    public void superStepPlus() {
+//        this.superStep++;
+//    }
+
+    public abstract V sendTo(String vertexID, Object value);
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof Vertex)) return false;
 
-        Vertex<?> vertex = (Vertex<?>) o;
+        Vertex<?, ?> vertex = (Vertex<?, ?>) o;
 
         return getVertexID().equals(vertex.getVertexID());
 

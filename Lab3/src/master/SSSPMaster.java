@@ -2,14 +2,15 @@ package master;
 
 import edge.Edge;
 import message.IntMessage;
+import worker.Worker;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 public class SSSPMaster extends Master<Integer, Integer, IntMessage> {
+    public static final String startNodeIndex = "0";
+    private Worker<Integer, Integer, IntMessage> startNodeWorker = null;
+
     @Override
     public void loadFromFile() throws IOException {
         int fileIndex = 0;
@@ -18,21 +19,24 @@ public class SSSPMaster extends Master<Integer, Integer, IntMessage> {
             File file = new File(partitionFilePath + fileIndex + ".txt");
             if (!file.exists())
                 break;
+            else
+                fileIndex++;
 
             BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(new FileInputStream(file)));
             String line;
             while ((line = bufferedReader.readLine()) != null) {
                 String[] nodes = line.split("\t");
+                Worker<Integer, Integer, IntMessage> randomWorker = workers.get(workersList.get(random.nextInt(workersList.size())));
+                if (nodes[0].equals(startNodeIndex))
+                    startNodeWorker = randomWorker;
                 if (nodes.length == 1) {
-                    workers.get(workersList.get(random.nextInt(workersList.size())))
-                            .addVertexIntoWorker(nodes[0], Collections.emptyList());
+                    randomWorker.addVertexIntoWorker(nodes[0], Collections.emptyList());
                 } else {
                     List<Edge<Integer>> edges = new ArrayList<>();
                     for (int i = 1; i < nodes.length; i++) {
                         edges.add(new Edge<>(nodes[i], 1));
                     }
-                    workers.get(workersList.get(random.nextInt(workersList.size())))
-                            .addVertexIntoWorker(nodes[0], edges);
+                    randomWorker.addVertexIntoWorker(nodes[0], edges);
                 }
             }
         }
@@ -40,6 +44,36 @@ public class SSSPMaster extends Master<Integer, Integer, IntMessage> {
 
     @Override
     public void run() {
+        System.out.println(startNodeWorker.getId());
+        System.out.println(workersList.size());
+        System.out.println(workers.size());
 
+        if (startNodeWorker == null)
+            return;
+        startNodeWorker.setWorking(true);
+        startNodeWorker.getVertex(startNodeIndex).voteToStart();
+        startNodeWorker.getVertex(startNodeIndex).setVertexValue(0);
+
+        int superStep = 0;
+        while (!this.finished) {
+            this.finished = true;
+            System.out.println(superStep);
+
+            for (String workerID : this.workersList) {
+                Worker<Integer, Integer, IntMessage> worker = workers.get(workerID);
+                if (worker.isWorking())
+                    this.finished = false;
+                else
+                    continue;
+                worker.run(superStep);
+            }
+            superStep++;
+            for(String workerID : this.workersList){
+                if(this.nextStepWakeUpWorkers.get(workerID)){
+                    this.nextStepWakeUpWorkers.put(workerID, false);
+                    this.workers.get(workerID).setWorking(true);
+                }
+            }
+        }
     }
 }

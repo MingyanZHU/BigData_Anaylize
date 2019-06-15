@@ -15,27 +15,26 @@ public class Communication<V extends Message> {
         sendQueue = new LinkedList<>();
     }
 
-    public V getMessageValueFromLastQueue(int superStep) {
-        V ans;
-        if (superStep % 2 == 0 && !receiveQueue_1.isEmpty()) {
-            ans = receiveQueue_1.poll();
-        } else if (superStep % 2 == 1 && !receiveQueue_2.isEmpty()) {
-            ans = receiveQueue_2.poll();
-        } else {
-            return null;
-        }
-        return ans;
-    }
-
-    public V getMessageFromSendQueue() {
-        if (sendQueue.isEmpty())
-            return null;
+    public Queue<V> getMessagesFromLastQueue(int superStep) {
+        if (superStep % 2 == 0)
+            return receiveQueue_1;
         else
-            return sendQueue.poll();
+            return receiveQueue_2;
     }
 
-    public boolean addMessagseIntoSendQueue(V message) {
+    public Queue<V> getMessagesFromSendQueue() {
+        return this.sendQueue;
+    }
+
+    public boolean addMessageIntoSendQueue(V message) {
         return sendQueue.add(message);
+    }
+
+    public boolean addMessageIntoQueue(V message, int superStep) {
+        if (superStep % 2 == 0)
+            return receiveQueue_1.add(message);
+        else
+            return receiveQueue_2.add(message);
     }
 
     public void clearLastReceiveQueue(int superStep) {

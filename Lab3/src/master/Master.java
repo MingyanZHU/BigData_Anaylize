@@ -1,6 +1,5 @@
 package master;
 
-import edge.Edge;
 import message.Message;
 import utils.Communication;
 import worker.Worker;
@@ -14,6 +13,7 @@ public abstract class Master<L, E, V extends Message> {
     protected boolean finished;
     protected final List<String> workersList;
     protected final Map<String, Worker<L, E, V>> workers;
+    protected final Map<String, Boolean> nextStepWakeUpWorkers;
     protected final Map<String, Communication<V>> vertexCommunication;
     protected final Map<String, Set<String>> outEdges;
     protected List<Map<String, Set<String>>> cuts;
@@ -23,13 +23,15 @@ public abstract class Master<L, E, V extends Message> {
         this.workers = new HashMap<>();
         this.workersList = new ArrayList<>();
         this.vertexCommunication = new HashMap<>();
+        this.nextStepWakeUpWorkers = new HashMap<>();
         this.outEdges = new HashMap<>();
         this.cuts = new ArrayList<>();
     }
 
-    public boolean addWorker(Worker<L, E, V> worker) {
+    public void addWorker(Worker<L, E, V> worker) {
         workersList.add(worker.getId());
-        return workers.put(worker.getId(), worker) != null;
+        workers.put(worker.getId(), worker);
+        nextStepWakeUpWorkers.put(worker.getId(), false);
     }
 
     public boolean removeWorker(String workerID) {
@@ -79,6 +81,24 @@ public abstract class Master<L, E, V extends Message> {
                 bufferedWriter.write('\n');
             }
             bufferedWriter.close();
+        }
+    }
+
+    public void addVertexCommunication(String vertexID, Communication<V> communication) {
+        vertexCommunication.put(vertexID, communication);
+    }
+
+    public Communication<V> getCommunicationFromVertex(String vertexID) {
+        return vertexCommunication.get(vertexID);
+    }
+
+    public void wakeUpNextStep(String vertexID) {
+        for (Worker<L, E, V> worker : workers.values()) {
+            if (worker.getVertex(vertexID) != null) {
+//                worker.getVertex(vertexID).voteToStart();
+                nextStepWakeUpWorkers.put(worker.getId(), true);
+                break;
+            }
         }
     }
 

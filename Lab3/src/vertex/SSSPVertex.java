@@ -1,25 +1,41 @@
 package vertex;
 
 import message.IntMessage;
-import message.Message;
 
 import java.util.Queue;
 
-public class SSSPVertex extends Vertex<Integer> {
+public class SSSPVertex extends Vertex<Integer, IntMessage> {
     public static final int INF = 0x3f3f3f3f;
 
     public SSSPVertex(String vertexID, Integer vertexValue) {
         super(vertexID, vertexValue);
+        voteToHalt();   // 对于单源最短路问题 初始时所有的vertex都是inactive状态
     }
 
     @Override
-    public void compute(Queue<Message> messages) {
-
+    public void compute(Queue<IntMessage> messages) {
+//        if (messages.isEmpty()) {
+//            voteToHalt();
+//            return;
+//        }
+        boolean update = false;
+        while (!messages.isEmpty()) {
+            IntMessage message = messages.poll();
+            int minDis = message.getValue();
+            if (minDis < getVertexValue()) {
+                setVertexValue(minDis);
+                update = true;
+                System.out.println(getVertexID() + "\t" + getVertexValue());
+            }
+        }
+        if (!update)
+            voteToHalt();
     }
 
     @Override
     public IntMessage sendTo(String vertexID, Object value) {
-        // todo 此处待优化 可以增加对于value的类型检查
+        if (!(value instanceof Integer))
+            return null;
         return new IntMessage(vertexID, (int) value);
     }
 }
