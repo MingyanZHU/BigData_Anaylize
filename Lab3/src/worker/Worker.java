@@ -1,20 +1,23 @@
-package utils;
+package worker;
 
 import combiner.Combiner;
 import edge.Edge;
+import master.Master;
 import message.Message;
+import utils.Communication;
 import vertex.Vertex;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class Worker<L, E, V extends Message> {
+public abstract class Worker<L, E, V extends Message> {
     private final String id;
-    private final Map<String, Vertex<L>> vertices;
-    private final Map<String, List<Edge<E>>> outEdges;
-    private final Map<String, Communication<V>> vertexCommunication;
-    private Combiner combiner;
+    protected final Map<String, Vertex<L>> vertices;
+    protected final Map<String, List<Edge<E>>> outEdges;
+    protected final Map<String, Communication<V>> vertexCommunication;
+    protected Combiner combiner;
     private Master<L, E, V> master;
 
     public Worker(Master<L, E, V> master, String id) {
@@ -38,4 +41,6 @@ public class Worker<L, E, V extends Message> {
     public String getId() {
         return id;
     }
+
+    public abstract void addVertexIntoWorker(String vertexID, List<Edge<E>> out);
 }

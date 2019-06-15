@@ -9,7 +9,7 @@ public class IntMessage extends Message {
     }
 
     @Override
-    public Object getValue() {
+    public Integer getValue() {
         return this.value;
     }
 }

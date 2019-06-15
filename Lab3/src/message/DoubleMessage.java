@@ -9,7 +9,7 @@ public class DoubleMessage extends Message {
     }
 
     @Override
-    public Object getValue() {
+    public Double getValue() {
         return this.value;
     }
 }
