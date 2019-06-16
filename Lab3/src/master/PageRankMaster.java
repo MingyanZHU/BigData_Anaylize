@@ -1,7 +1,10 @@
 package master;
 
+import aggregator.Aggregator;
+import aggregator.PageRankMaxAggregator;
 import edge.Edge;
 import message.DoubleMessage;
+import vertex.Vertex;
 import worker.Worker;
 
 import java.io.*;
@@ -11,6 +14,16 @@ import java.util.List;
 import java.util.Random;
 
 public class PageRankMaster extends Master<Double, Double, DoubleMessage> {
+    private Aggregator<Double, DoubleMessage> pageRankAggregator = new PageRankMaxAggregator();
+
+    public void pageRankReport(Vertex<Double, DoubleMessage> vertex) {
+        pageRankAggregator.report(vertex);
+    }
+
+    public String pageRankAggregateMessage() {
+        return pageRankAggregator.aggregateMessage();
+    }
+
     @Override
     public void loadFromFile() throws IOException {
         int fileIndex = 0;
@@ -64,5 +77,6 @@ public class PageRankMaster extends Master<Double, Double, DoubleMessage> {
                 }
             }
         }
+        System.out.println(pageRankAggregator.aggregateMessage());
     }
 }

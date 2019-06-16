@@ -1,7 +1,10 @@
 package master;
 
+import aggregator.Aggregator;
+import aggregator.VertexCountAggregator;
 import message.Message;
 import utils.Communication;
+import vertex.Vertex;
 import worker.Worker;
 
 import java.io.*;
@@ -17,6 +20,7 @@ public abstract class Master<L, E, V extends Message> {
     private final Map<String, Communication<V>> vertexCommunication;
     private final Map<String, Set<String>> outEdges;
     private List<Map<String, Set<String>>> cuts;
+    final VertexCountAggregator globalAgg;
 
     Master() {
         this.finished = false;
@@ -26,6 +30,7 @@ public abstract class Master<L, E, V extends Message> {
         this.nextStepWakeUpWorkers = new HashMap<>();
         this.outEdges = new HashMap<>();
         this.cuts = new ArrayList<>();
+        this.globalAgg = new VertexCountAggregator();
     }
 
     public void addWorker(Worker<L, E, V> worker) {
@@ -40,6 +45,14 @@ public abstract class Master<L, E, V extends Message> {
             return true;
         }
         return false;
+    }
+
+    public void report(Vertex<L, V> vertex) {
+        this.globalAgg.report(vertex);
+    }
+
+    public String aggregateMessage() {
+        return this.globalAgg.aggregateMessage();
     }
 
     public void partition(String filePath, int number) throws IOException {

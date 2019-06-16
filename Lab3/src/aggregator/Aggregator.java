@@ -1,7 +1,12 @@
 package aggregator;
 
-public abstract class Aggregator {
-    public abstract void report();
+import message.Message;
+import vertex.Vertex;
+
+public abstract class Aggregator<L, V extends Message> {
+    public abstract void report(Vertex<L, V> vertex);
+
+    public abstract String aggregateMessage();
 
     public void aggregate(AggregateFunction aggregateFunction) {
         switch (aggregateFunction) {
