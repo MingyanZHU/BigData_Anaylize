@@ -8,6 +8,7 @@ import utils.Communication;
 import utils.Statistician;
 import vertex.Vertex;
 
+import java.io.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -61,6 +62,14 @@ public abstract class Worker<L, E, V extends Message> {
 
     public Statistician getStatistician() {
         return statistician;
+    }
+
+    public void outputResult(String filePath) throws IOException {
+        BufferedWriter writer = new BufferedWriter(new FileWriter(filePath, true));
+        for (Map.Entry<String, Vertex<L, V>> entry : this.vertices.entrySet()) {
+            writer.write(entry.getKey() + " : " + entry.getValue().getVertexValue() + "\n");
+        }
+        writer.close();
     }
 
     void naiveAddVertexIntoWorker(String vertexID, Vertex<L, V> vertex, List<Edge<E>> out) {

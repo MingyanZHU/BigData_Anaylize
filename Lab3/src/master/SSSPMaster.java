@@ -9,6 +9,7 @@ import java.util.*;
 
 public class SSSPMaster extends Master<Integer, Integer, IntMessage> {
     private static final String startNodeIndex = "0";
+    private static final String SSSP_FILE_PATH = "./result/SSSP_result.txt";
     private Worker<Integer, Integer, IntMessage> startNodeWorker = null;
 
     @Override
@@ -48,6 +49,10 @@ public class SSSPMaster extends Master<Integer, Integer, IntMessage> {
 //        System.out.println(workersList.size());
 //        System.out.println(workers.size());
 
+        File outputFile = new File(SSSP_FILE_PATH);
+        if (outputFile.exists() && outputFile.isFile())
+            outputFile.delete();
+
         if (startNodeWorker == null)
             return;
         startNodeWorker.setWorking(true);
@@ -75,6 +80,13 @@ public class SSSPMaster extends Master<Integer, Integer, IntMessage> {
                     this.workers.get(workerID).setWorking(true);
                 }
             }
+        }
+        try {
+            for (Worker<Integer, Integer, IntMessage> worker : this.workers.values()) {
+                worker.outputResult(SSSP_FILE_PATH);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 }

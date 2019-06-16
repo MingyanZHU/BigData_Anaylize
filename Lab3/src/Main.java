@@ -14,16 +14,17 @@ import java.io.IOException;
 public class Main {
 
     public static void main(String[] args) throws IOException {
+        int workerNumber = 10;
         long timeStart, timeEnd;
         timeStart = System.currentTimeMillis();
 //        Master<Integer, Integer, IntMessage> master = new SSSPMaster();
         Master<Double, Double, DoubleMessage> master = new PageRankMaster();
-//        master.partition("web-Google-using.txt", 10);
+//        master.partition("web-Google-using.txt", workerNumber);
 //        master.save();
 
-        for (int i = 0; i < 10; i++) {
-//            master.addWorker(new SSSPWorker(master, i + "", new SSSPCombiner()));
+        for (int i = 0; i < workerNumber; i++) {
 //            master.addWorker(new SSSPWorker(master, i + ""));
+//            master.addWorker(new SSSPWorker(master, i + "", new SSSPCombiner()));
 //            master.addWorker(new PageRankWorker(master, i + ""));
             master.addWorker(new PageRankWorker(master, i + "", new PageRankCombiner()));
         }

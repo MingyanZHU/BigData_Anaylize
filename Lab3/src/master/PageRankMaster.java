@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Random;
 
 public class PageRankMaster extends Master<Double, Double, DoubleMessage> {
+    private final static String PAGE_RANK_FILE_PATH = "./result/PAGE_RANK_result.txt";
     private Aggregator<Double, DoubleMessage> pageRankAggregator = new PageRankMaxAggregator();
 
     public void pageRankReport(Vertex<Double, DoubleMessage> vertex) {
@@ -55,6 +56,10 @@ public class PageRankMaster extends Master<Double, Double, DoubleMessage> {
 
     @Override
     public void run() {
+        File outputFile = new File(PAGE_RANK_FILE_PATH);
+        if (outputFile.exists() && outputFile.isFile())
+            outputFile.delete();
+
         int superStep = 0;
         while (!this.finished) {
             this.finished = true;
@@ -78,5 +83,12 @@ public class PageRankMaster extends Master<Double, Double, DoubleMessage> {
             }
         }
         System.out.println(pageRankAggregator.aggregateMessage());
+        try {
+            for (Worker<Double, Double, DoubleMessage> worker : workers.values()) {
+                worker.outputResult(PAGE_RANK_FILE_PATH);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }

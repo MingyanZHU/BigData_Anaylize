@@ -7,6 +7,7 @@ import message.IntMessage;
 import vertex.SSSPVertex;
 import vertex.Vertex;
 
+import java.io.*;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +26,15 @@ public class SSSPWorker extends Worker<Integer, Integer, IntMessage> {
     public void addVertexIntoWorker(String vertexID, List<Edge<Integer>> out) {
         Vertex<Integer, IntMessage> vertex = new SSSPVertex(vertexID, SSSPVertex.INF);
         naiveAddVertexIntoWorker(vertexID, vertex, out);
+    }
+
+    @Override
+    public void outputResult(String filePath) throws IOException {
+        BufferedWriter writer = new BufferedWriter(new FileWriter(filePath, true));
+        for (Map.Entry<String, Vertex<Integer, IntMessage>> entry : this.vertices.entrySet()) {
+            writer.write(entry.getKey() + " : " + (entry.getValue().getVertexValue() >= SSSPVertex.INF ? "INF" : entry.getValue().getVertexValue()) + "\n");
+        }
+        writer.close();
     }
 
     @Override
