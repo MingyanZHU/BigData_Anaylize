@@ -1,6 +1,5 @@
 package utils;
 
-import message.IntMessage;
 import message.Message;
 
 import java.util.LinkedList;

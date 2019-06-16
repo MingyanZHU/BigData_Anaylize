@@ -25,8 +25,8 @@ public class Main {
         for (int i = 0; i < workerNumber; i++) {
 //            master.addWorker(new SSSPWorker(master, i + ""));
 //            master.addWorker(new SSSPWorker(master, i + "", new SSSPCombiner()));
-//            master.addWorker(new PageRankWorker(master, i + ""));
-            master.addWorker(new PageRankWorker(master, i + "", new PageRankCombiner()));
+            master.addWorker(new PageRankWorker(master, i + ""));
+//            master.addWorker(new PageRankWorker(master, i + "", new PageRankCombiner()));
         }
 
         master.loadFromFile();

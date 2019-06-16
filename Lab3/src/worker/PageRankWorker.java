@@ -48,13 +48,12 @@ public class PageRankWorker extends Worker<Double, Double, DoubleMessage> {
             } else {
                 for (String vertexID : this.vertices.keySet()) {
                     Vertex<Double, DoubleMessage> vertex = this.getVertex(vertexID);
-                    if (!this.vertexCommunication.get(vertexID).getMessagesFromLastQueue(superStep).isEmpty()) {
-                        vertex.setSuperStep(superStep);
-                        vertex.compute(this.vertexCommunication.get(vertexID).getMessagesFromLastQueue(superStep));
-                        // todo 此处应该修改为0.15 / 全局的顶点数目 待完善Aggregator
-//                        vertex.setVertexValue(0.15 / this.vertices.size() + 0.85 * vertex.getVertexValue());
-                        vertex.setVertexValue(0.15 / Integer.valueOf(this.master.aggregateMessage()) + 0.85 * vertex.getVertexValue());
-                    }
+                    vertex.setSuperStep(superStep);
+                    vertex.compute(this.vertexCommunication.get(vertexID).getMessagesFromLastQueue(superStep));
+                    vertex.setVertexValue(0.15 / Integer.valueOf(this.master.aggregateMessage()) + 0.85 * vertex.getVertexValue());
+//                    if (!this.vertexCommunication.get(vertexID).getMessagesFromLastQueue(superStep).isEmpty()) {
+////                        vertex.setVertexValue(0.15 / this.vertices.size() + 0.85 * vertex.getVertexValue());
+//                    }
                     List<Edge<Double>> outEdge = this.outEdges.get(vertexID);
                     int outEdgesNumber = outEdge.size();
                     for (Edge<Double> edge : outEdge) {

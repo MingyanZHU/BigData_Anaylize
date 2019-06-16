@@ -6,14 +6,20 @@ import vertex.Vertex;
 import java.util.PriorityQueue;
 
 public class PageRankMaxAggregator extends Aggregator<Double, DoubleMessage> {
-    private static final int N = 10;
+    private static final int N = 5;
 //    private double maxPageRank = Double.MIN_VALUE;
 //    private String maxVertexID = "";
 
     private PriorityQueue<Vertex<Double, DoubleMessage>> top;
 
     public PageRankMaxAggregator() {
-        this.top = new PriorityQueue<>(N, (o1, o2) -> (int) (o1.getVertexValue() - o2.getVertexValue()));
+        this.top = new PriorityQueue<>(N, (o1, o2) -> {
+            if (o1.getVertexValue() < o2.getVertexValue())
+                return -1;
+            else if (o1.getVertexValue() > o2.getVertexValue())
+                return 1;
+            return 0;
+        });
     }
 
     @Override
