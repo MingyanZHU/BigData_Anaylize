@@ -109,8 +109,36 @@
     \includegraphics[width=0.7\linewidth]{media/combiner.png}
     \caption{\texttt{Combiner}及其子类UML图}\label{fig:combiner}
 \end{figure}
-\texttt{Combiner}及其子类用作将属性进行% TODO
+\texttt{Combiner}及其子类用于将多条发送至同一Vertex的信息进行合并，对于不同的应用可以有不同的合并方式，在相应的子类中重写\texttt{combine}函数即可，
+然后利用其中的维护的接收Vertex和信息的Map来实现减少通信数量的作用。\texttt{Combiner}与\texttt{Worker}结合使用，每个\texttt{Worker}中可以有
+至多一个\texttt{Combiner}，其继承关系如图\ref{fig:combiner}所示。
 
+对于不同应用的\texttt{combine}函数的作用不同，分别有如下功能，
+\begin{itemize}
+    \item 对于\texttt{SSSPCombiner}而言，\texttt{combine}函数对于发往同一个目的顶点的信息，\textbf{取其中较小的信息}保留。
+    \item 对于\texttt{PageRankCombiner}而言，\texttt{combine}函数对于发往同一目的地的信息\textbf{取和}保留。
+\end{itemize}
+
+\subsubsection{\texttt{Aggregator}及其子类}
+\begin{figure}[htb]
+    \centering
+    \includegraphics[width=0.7\linewidth]{media/aggregator.png}
+    \caption{\texttt{Aggregator}及其子类UML图}\label{fig:aggregator}
+\end{figure}
+\texttt{Aggregator}及其子类用作统计全局信息，在本项目中主要使用其进行全局节点数目的统计和在执行完PageRanking后进行Rank的TopK统计。继承关系
+如图\ref{fig:aggregator}所示，由于使用到全局信息，所以\texttt{Aggregator}与\texttt{Master}节点结合使用，并且对于每个\texttt{Master}
+至多与1个\texttt{Aggregator}结合使用。
+
+对于两种不同的应用，分别有不同的函数实现，
+\begin{itemize}
+    \item \texttt{VertexCountAggregator}用于统计全局的节点数目，故在\texttt{report}对其维护的Vertex数量进行自增即可。
+    \item \texttt{PageRankMaxAggregator}用于全局的PageRank中TopK的统计，所以在其中维护了一个大小为K的小顶堆，在不足K个时将每个顶点均加入
+    堆中，达到K个时则判断当前堆顶元素的Rank是否比新来的Vertex的Rank高，如果新来的更高则弹出堆顶元素，加入新来元素，否则直接舍弃堆顶元素即可。
+\end{itemize}
+
+\subsection{图分析算法实现}
+\subsubsection{SSSP的实现}
+\subsubsection{PageRank的实现}
 \section{实验心得}
 可以分享您在实验环境搭建、程序编写和调试以及结果分析过程中遇到的问题和解决方法。
 \appendix
