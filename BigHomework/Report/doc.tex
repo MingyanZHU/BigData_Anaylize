@@ -1,0 +1,58 @@
+\documentclass{ML}
+\usepackage{amssymb}
+% 姓名，学号
+\infoauthor{1160300312\ 靳贺霖}{1160300314\ 朱明彦}
+
+% 课程类型，实验名称
+\infoexp{课程类型}{分布式空间近似关键字查询系统}
+
+\infoschool{计算机学院}{杨东华、王金宝}
+
+\begin{document}
+\maketitle
+
+\tableofcontents
+\newpage
+
+\begin{center}
+    \textbf{\zihao{3} 分布式空间近似关键字查询系统}
+\end{center}
+
+\section{问题描述}
+\subsection{数据}
+空间对象集合$D = {o_1, o_2, \dots, o_n}$，对于$D$中任意一个对象$o_i = (loc_i, kw_{i, 1}, \dots, kw_{i, m})$，
+即包含$\mathbb{N}$维欧式空间中一个点$loc_i$和一组关键字$kw_{i, 1}, \dots, kw_{i, m}$，记为$o_i.loc = loc_i$和$o_i.kw = \{kw_{i, 1}, \dots, kw_{i, m}\}$。
+
+\subsection{范围查询}
+\paragraph{输入：}$Q = (Q_{rs}, Q_{rt})$，其中$Q_{rs}$是一个空间范围（$\mathbb{N}$维欧式空间中的超立方体）；$Q_{rt}$为关键字近似条件，
+$Q_{rt} = \{(kw_1, \theta_1), \dots, (kw_K, \theta_K)\}$，其中$\theta_i$为阈值。
+\paragraph{输出：}$O = \{o | o \in D, o.loc \in Q.Q_s, \forall(kw_i, \theta_i) \in Q.Q_t, \exists o.kw_j, \mathrm{ED}(kw_j, kw_i) \leq \theta_i\}$，
+其中$\mathrm{ED}(kw_j, kw_i)$表示两个关键字$kw_i$和$kw_j$之间的编辑距离。
+
+\subsection{$k$NN查询}\label{sec:knn_query}
+\paragraph{输入：} $Q = (Q_s, Q_t, k)$，其中$Q_s = loc$是$\mathbb{N}$维欧式空间中一个点，即查询发出的位置；
+$Q_t = \{(kw_1, \theta_1), \dots, (kw_K, \theta_K)\}$；$k$为表示最近邻居的数量。
+\paragraph{输出：}对$O_t = \{o | o \in D, \forall(kw_i, \theta_i) \in Q.Q_t, \exists o.kw_j, \mathrm{ED}(kw_j, kw_i) \leq \theta_i\}$，
+根据$|O_t|$的大小进行定义，
+\begin{itemize}
+    \item 如果$|O_t| \leq k$，则$O_{k\mathrm{NN}} = O_t$即为最终结果。
+    \item 如果$|O_t| > k$，$O_{k\mathrm{NN}}= \{o | o \in O_t, \forall o_i \in O_t - O, \mathrm{Dis}(loc, o_i) \ge \mathrm{Dis}(loc, o_j)$对$\forall o_j \in O$成立$\}$
+    并且$|O_{k\mathrm{NN}}| = k$。
+\end{itemize}
+
+\subsection{Reverse $k$NN查询}
+\paragraph{输入：}与\ref{sec:knn_query}节输入相同，不再赘述。
+\paragraph{输出：}$O_{\mathrm{R}k\mathrm{NN}} = \{o_{R_1}, \dots, o_{R_M}\}$，对于$O_{\mathrm{R}k\mathrm{NN}}$中的任一元素$o_{R_i}$
+均有$o_{k\mathrm{NN}} \in O_{R_i-k\mathrm{NN}}$且$o_{R_i} \in D$，其中$o_{k\mathrm{NN}}.loc = Q_s, o_{k\mathrm{NN}}.kw = Q_t$；$O_{R_i-k\mathrm{NN}}$是以$(o_{R_i}.loc, o_{R_i}.kw, k)$为输入的$k$NN查询结果。
+\section{系统设计}
+
+\section{系统工作流程}
+% \section{实验心得}
+\appendix
+
+% \section{参考文献}
+\begin{thebibliography}{20}
+    \bibitem{Spatial approximate string search, F Li.} Li F, Yao B, Tang M, et al. Spatial approximate string search[J]. IEEE Transactions on Knowledge and Data Engineering, 2012, 25(6): 1394-1409.
+\end{thebibliography}
+
+\end{document}
