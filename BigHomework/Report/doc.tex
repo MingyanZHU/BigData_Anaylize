@@ -45,14 +45,22 @@ $Q_t = \{(kw_1, \theta_1), \dots, (kw_K, \theta_K)\}$；$k$为表示最近邻居
 \paragraph{输出：}$O_{\mathrm{R}k\mathrm{NN}} = \{o_{R_1}, \dots, o_{R_M}\}$，对于$O_{\mathrm{R}k\mathrm{NN}}$中的任一元素$o_{R_i}$
 均有$o_{k\mathrm{NN}} \in O_{R_i-k\mathrm{NN}}$且$o_{R_i} \in D$，其中$o_{k\mathrm{NN}}.loc = Q_s, o_{k\mathrm{NN}}.kw = Q_t$；$O_{R_i-k\mathrm{NN}}$是以$(o_{R_i}.loc, o_{R_i}.kw, k)$为输入的$k$NN查询结果。
 \section{系统设计}
-
+% 存储、索引、算法（建议加入系统架构图、设计示例）
+主要思路\begin{itemize}
+    \item 存储部分，类似Spark、HDFS进行处理
+    \item 索引和算法部分，两层索引结构，组织不同节点间的索引使用\texttt{RT-CAN}\cite{RT-CAN}，在本地使用以R树为核心，结合MHR-Tree\cite{MHR-Tree}
+    进行范围查询，结合Voronoi Diagrams\cite{VoR-Tree}进行$k$NN查询和Reverse $k$NN查询。
+\end{itemize}
 \section{系统工作流程}
+% 数据导入、索引/样本构建/维护、查询处理
 % \section{实验心得}
 \appendix
 
 % \section{参考文献}
 \begin{thebibliography}{20}
-    \bibitem{Spatial approximate string search, F Li.} Li F, Yao B, Tang M, et al. Spatial approximate string search[J]. IEEE Transactions on Knowledge and Data Engineering, 2012, 25(6): 1394-1409.
+    \bibitem{MHR-Tree} Li F, Yao B, Tang M, et al. Spatial approximate string search[J]. IEEE Transactions on Knowledge and Data Engineering, 2012, 25(6): 1394-1409.
+    \bibitem{VoR-Tree} Sharifzadeh M, Shahabi C. Vor-tree: R-trees with voronoi diagrams for efficient processing of spatial nearest neighbor queries[J]. Proceedings of the VLDB Endowment, 2010, 3(1-2): 1231-1242.
+    \bibitem{RT-CAN} Wang J, Wu S, Gao H, et al. Indexing multi-dimensional data in a cloud system[C]//Proceedings of the 2010 ACM SIGMOD International Conference on Management of data. ACM, 2010: 591-602.
 \end{thebibliography}
 
 \end{document}
