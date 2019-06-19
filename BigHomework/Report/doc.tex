@@ -1,5 +1,11 @@
 \documentclass{ML}
 \usepackage{amssymb}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+
+% \usepackage{algorithm}
+% \usepackage{algorithmic}
+
 % 姓名，学号
 \infoauthor{1160300312\ 靳贺霖}{1160300314\ 朱明彦}
 
@@ -19,16 +25,16 @@
 \end{center}
 
 \section{问题描述}
-\subsection{数据}
-空间对象集合$D = {o_1, o_2, \dots, o_n}$，对于$D$中任意一个对象$o_i = (loc_i, kw_{i, 1}, \dots, kw_{i, m})$，
+\subsection{数据}\label{sec:data}
+空间对象集合$D = \{o_1, o_2, \dots, o_n\}$，对于$D$中任意一个对象$o_i = (loc_i, kw_{i, 1}, \dots, kw_{i, m})$，
 即包含$\mathbb{R}^d$维欧式空间中一个点$loc_i$和一组关键字$kw_{i, 1}, \dots, kw_{i, m}$，记为$o_i.loc = loc_i$和$o_i.kw = \{kw_{i, 1}, \dots, kw_{i, m}\}$。
 \textbf{在本项目中主要关注$d = 2$的情况，$\mathbb{R}^2$对于现实中的应用有着很大的价值，但项目中提出的方法可以扩充到任意有限维欧式空间。}
 
-\subsection{范围查询}
+\subsection{范围查询}\label{sec:range-query}
 \paragraph{输入：}$Q = (Q_{rs}, Q_{rt})$，其中$Q_{rs}$是一个空间范围（$\mathbb{R}^d$维欧式空间中的超立方体）；$Q_{rt}$为关键字近似条件，
 $Q_{rt} = \{(kw_1, \theta_1), \dots, (kw_K, \theta_K)\}$，其中$\theta_i$为阈值。
 \paragraph{输出：}$O = \{o | o \in D, o.loc \in Q.Q_s, \forall(kw_i, \theta_i) \in Q.Q_t, \exists o.kw_j, \mathrm{ED}(kw_j, kw_i) \leq \theta_i\}$，
-其中$\mathrm{ED}(kw_j, kw_i)$表示两个关键字$kw_i$和$kw_j$之间的编辑距离。
+其中$\mathrm{ED}(kw_j, kw_i)$表示两个关键字$kw_j$和$kw_i$之间的编辑距离。
 
 \subsection{$k$NN查询}\label{sec:knn_query}
 \paragraph{输入：} $Q = (Q_s, Q_t, k)$，其中$Q_s = loc$是$\mathbb{R}^d$维欧式空间中一个点，即查询发出的位置；
@@ -41,27 +47,170 @@ $Q_t = \{(kw_1, \theta_1), \dots, (kw_K, \theta_K)\}$；$k$为表示最近邻居
     并且$|O_{k\mathrm{NN}}| = k$。
 \end{itemize}
 
-\subsection{Reverse $k$NN查询}
+\subsection{Reverse $k$NN查询}\label{sec:RkNN-query}
 \paragraph{输入：}与\ref{sec:knn_query}节输入相同，不再赘述。
 \paragraph{输出：}$O_{\mathrm{R}k\mathrm{NN}} = \{o_{R_1}, \dots, o_{R_M}\}$，对于$O_{\mathrm{R}k\mathrm{NN}}$中的任一元素$o_{R_i}$
 均有$o_{k\mathrm{NN}} \in O_{R_i-k\mathrm{NN}}$且$o_{R_i} \in D$，其中$o_{k\mathrm{NN}}.loc = Q_s, o_{k\mathrm{NN}}.kw = Q_t$；$O_{R_i-k\mathrm{NN}}$是以$(o_{R_i}.loc, o_{R_i}.kw, k)$为输入的$k$NN查询结果。
-\section{系统设计}
+% \section{系统设计}
 % 存储、索引、算法（建议加入系统架构图、设计示例）
+
+\newpage
+% 注意仅用于记录思路，提交时删除。
 主要思路\begin{itemize}
     \item 存储部分，类似Spark、HDFS进行处理
     \item 索引和算法部分，两层索引结构，组织不同节点间的索引使用\texttt{RT-CAN}\cite{RT-CAN}，在本地使用以R树为核心，结合MHR-Tree\cite{MHR-Tree}
     进行范围查询，结合Voronoi Diagrams\cite{VoR-Tree}进行$k$NN查询和Reverse $k$NN查询。
 \end{itemize}
-\section{系统工作流程}
+
+\section{Background}
+\subsection{R-Tree}
+R-Tree\cite{R-Tree}是如今处理空间查询最常用的索引，它将$\mathbb{R}^d$中的数据
+划分到$d$维超立方体（Minimum Bounding Rectangle），并将每个超立方体存储在叶子节点。
+将每个数据划分到叶子后，再递归地寻找MBR能够覆盖若干个叶子，直到仅剩一个MBR，即为R-Tree的根节点。
+
+\subsection{Voronoi图}
+Voronoi Diagram\cite{Voronoi-Diagram}是一种根据点之间特定的距离度量方式将空间划分成若干区域的划分方式。
+对于$\mathbb{R}^d$中的一个集合$D = \{p_1, p_2, \dots, p_n\}$上的Voronoi图，将$\mathbb{R}^d$划分为$n$
+个区域，每个区域中包含着距离$D$中某一个数据在$\mathbb{R}^d$最近的所有点，其中距离$\mathrm{Dis}(.,.)$的定义方式可以自行给定。
+
+换而言之，如果给定$q \in \mathbb{R}^d, p_i \in D$，如果$q$在Voronoi图中包含$p_i$的区域里，则
+$$\forall j \neq i, p_j \in D, \mathrm{Dis}(p_j, q) \ge \mathrm{Dis}(p_i, q)$$
+由上述性质以及在\cite{VD-Property}中提到的性质，Voronoi图在处理$k$NN查询和Reverse $k$NN查询有着很好的效果。
+\textbf{在本项目中，主要关注$d = 2$并且使用欧式距离度量的情况。}
+
+\subsection{MHR-Tree\cite{MHR-Tree}}
+MHR-Tree本质上是在R树上增加关键字集合的信息（min-hash签名），并使用基于$q$-gram集合
+的剪枝策略来处理近似关键字的条件。从根节点开始的查询，根据查询关键字$\sigma$和某一个内节点$u$的
+$q$-gram集合$|g_{\sigma} \cap g_u|$的大小来进行剪枝。
+\begin{itemize}
+    \item 当$|g_{\sigma} \cap g_u| < |\sigma| - 1 - (\tau - 1) * q$时，无需访问$u$，其中$\tau$为编辑距离的阈值。
+    \item 否则，需要访问内节点$u$。
+\end{itemize}
+而根据\cite{MHR-Tree}中可以通过$s(g_{\sigma})$和$s(g_{u})$来估计$|g_{\sigma} \cap g_u|$，主要依赖于下式
+$$ \widehat{|g_{\sigma} \cap g_u|} = \hat{\rho}(g_{\sigma}, g_u) \times \widehat{|g_{\sigma} \cup g_u|}$$
+
+\subsection{CAN}
+% todo
+
+\section{索引结构}
+\subsection{二级索引结构（\textit{RT-CAN}）}
+\subsection{本地索引结构（\textit{MVR-Tree}）}
+本地索引结构主要是基于R-Tree\cite{R-Tree}，结合\cite{MHR-Tree}和\cite{VoR-Tree}两篇文章的工作，
+分别取MHR-Tree在处理范围查询上的良好表现，以及Voronoi图在处理$k$NN和R$k$NN上的良好效果，
+所以将本地的索引结构称为\textit{\textbf{MVR-Tree}(\textbf{M}in-wise signature with linear hashing and \textbf{V}oronoi diagram \textbf{R-Tree})}。
+
+由RT-CAN给每个单机分配的内容，我们可以得到的一个R树；% todo 通顺
+根据\cite{VD-Property}中提到的如Fortune's sweepline算法，可以用来构建$D$上的
+Voronoi图，并将Voronoi图中的邻居$VN(o_i)$和每个cell对应的区域$V(o_i)$记录在每个节点$o_i$中；
+另外根据R树每个叶子节点$o_i$的关键字信息，可以计算其对应的$q$-grams $g_{o_i}$和对应的min-wise签名$s(g_{o_i})$，
+并根据所有叶子节点的$s(g_{o_i})$可以递归地自底向上的构建出所有R树内节点的min-wise签名\cite{MHR-Tree}。
+
+因此，\textbf{\textit{MVR-Tree}是一个R树的变种，并在每个叶子节点$o_i$记录Voronoi图的信息$VN(o_i), V(o_i)$和
+min-wise信息$g_{o_i}, s(g_{o_i})$，以及在每个内节点$u$记录$s(g_u)$。}
+
+\section{查询处理}
+在本地使用MVR-Tree进行范围查询、$k$NN查询和R$k$NN查询，分别是使用\cite{MHR-Tree}
+中针对range query的方法和使用\cite{VoR-Tree}中针对$k$NN和R$k$NN的方法来实现。
+
+\textbf{可以这样做的正确性是依赖于R树的性质：无论是\cite{MHR-Tree}中提出的MHR-Tree和\cite{VoR-Tree}中
+提出的VoR-Tree，都是在叶子节点增加了额外的信息用于查询式剪枝，而没有改变R树的性质。并且在\cite{VoR-Tree}中
+提到所有原本在R树上可以进行的查询，都可以在VoR-Tree上照常进行。而MVR-Tree只是结合了两种索引，并没有改变
+本质上作为R树的性质。所以直接利用\cite{MHR-Tree}和\cite{VoR-Tree}中的相应算法，在MVR-Tree上就可以进行查询，并且可以保证正确性}。
+
+\subsection{Range Query}
+\begin{algorithm}
+  \caption{Range Query(MVR-Tree $R$, $(Q_{rs}, Q_{rt})$)}
+  \label{alg:range-query}
+  \begin{algorithmic}[1]
+    \State 将队列$L$和本地结果$O$初始化为$\emptyset$
+    \State 将$R$的根节点$u$插入$L$
+    \While{$L \neq \emptyset$}
+    \State 取$L$的队首元素$u$并且其弹出
+    \If{$u$是叶节点}
+    \For{对于每个$o \in u$}
+    \If{$o$在$Q_{rs}$中 \textbf{and} $|g_o \cap g_{\sigma}| \ge \max(|kw_i|, |kw_j|) - 1 - (\theta_j - 1) * q$}
+    \If{$\mathrm{ED}(kw_i, kw_j) < \theta_j$}\Comment{$kw_i \in o.kw, (kw_j, \theta_j) \in Q_{rt}$}
+    \State 将$o$插入$O$中
+    \EndIf
+    \EndIf
+    \EndFor
+    \Else
+    \For{$u$的每个子节点$p_i$}
+    \If{$Q_{rs}$和$p_i$的区域存在交集}
+    \State 利用\cite{MHR-Tree}中提到的方法估计$\widehat{|g_{kw_i} \cap g_{kw_j}|}$
+    \Comment{$g_{kw_i}$是$p_i$节点的min-hash签名}
+    \If{$\widehat{|g_{kw_i} \cap g_{kw_j}|} \ge |kw_j| - 1 - (\theta_j - 1) * q$}
+    \State 将$p_i$插入$L$中
+    \EndIf
+    \EndIf
+    \EndFor
+    \EndIf
+    \EndWhile
+    \State 返回$O$
+  \end{algorithmic}
+\end{algorithm}
+对于\ref{sec:range-query}节所提到的范围查询，当其经过\textit{RT-CAN}查询到达本地时，% TODO
+即可按照算法\ref{alg:range-query}进行查找。其中通过$14-15$行来实现近似关键字查询剪枝；
+通过12行来实现范围上的查询。
+\subsection{$k$NN Query}
+对于\ref{sec:knn_query}节提到的$k$NN查询，是利用MVR-Tree先找到距离查询$Q_s$最近的邻居（即$1$-NN），
+根据$1$-NN的结果以及其在Voronoi图上的邻居来实现接下来查询的剪枝，如此相比\cite{MHR-Tree}中直接利用MHR-Tree和
+堆进行的$k$NN查询具有更好的I/O代价\cite{VoR-Tree}。具体的过程如算法\ref{alg:knn-query}所示。
+\begin{algorithm}
+    \caption{$k$NN Query(MVR-Tree $R$, $(Q_{s}, Q_{t}, k)$)}
+    \label{alg:knn-query}
+    \begin{algorithmic}[1]
+      \State 将小顶堆$H$初始化为$\emptyset$，$bestDist = \infty$，$bestNN = null$
+      \State 将$R$的根节点$r$插入$H$，即$H = \{(r, 0)\}$
+      \While{$H \neq \emptyset$}
+      \State 取$H$的堆顶元素$u$并且其弹出
+      \If{$u$是叶节点}
+      \For{对于每个$o \in u$}
+      \If{$\mathrm{Dis}(Q_s, o) < bestDist$}
+      \State $bestNN = o; bestDist = \mathrm{Dis}(Q_s, o)$
+      \EndIf
+      \EndFor
+      \If{$bestNN != null$ \textbf{and} $V(bestNN)$ 包含 $o$}
+      \State \textbf{Break;}
+      \EndIf
+      \Else
+      \For{$u$的每个子节点$p_i$}
+      \State 将$(p_i, mindist(p_i, Q_s))$插入$H$中
+      \EndFor
+      \EndIf
+      \EndWhile
+      \If{$bestNN != null$}
+      \State 将$H$弹空，将$(bestNN, \mathrm{Dis}(bestNN, Q_s))$插入$H$
+      \State $Visited = \{bestNN\};counter = 0;$
+      \While{$counter < k$}
+      \State $counter++;$
+      \State 取$H$的堆顶元素$p$，并将其弹出
+      \State 输出$counter$-NN即$p$
+      \For{对$p$的每个Voronoi图邻居$p'$}
+      \If{$p' \notin Visited$}
+      \State 将$p'$加入$Visited$，并且将$\mathrm{Dis}(p', Q_s)$插入$H$
+      \EndIf
+      \EndFor
+      \EndWhile
+      \Else
+      \State 不存在$1$-NN，算法结束
+      \EndIf
+    \end{algorithmic}
+  \end{algorithm}
+\subsection{Reverse $k$NN Query}
+% \section{系统工作流程}
 % 数据导入、索引/样本构建/维护、查询处理
 % \section{实验心得}
 \appendix
 
 % \section{参考文献}
 \begin{thebibliography}{20}
-    \bibitem{MHR-Tree} Li F, Yao B, Tang M, et al. Spatial approximate string search[J]. IEEE Transactions on Knowledge and Data Engineering, 2012, 25(6): 1394-1409.
+    \bibitem{R-Tree} Guttman A. R-trees: a dynamic index structure for spatial searching[M]. ACM, 1984.
+    \bibitem{Voronoi-Diagram} Aurenhammer F. Voronoi diagrams—a survey of a fundamental geometric data structure[J]. ACM Computing Surveys (CSUR), 1991, 23(3): 345-405.
+    \bibitem{VD-Property} Okabe A, Boots B, Sugihara K, et al. Spatial tessellations: concepts and applications of Voronoi diagrams[M]. John Wiley \& Sons, 2009.
     \bibitem{VoR-Tree} Sharifzadeh M, Shahabi C. Vor-tree: R-trees with voronoi diagrams for efficient processing of spatial nearest neighbor queries[J]. Proceedings of the VLDB Endowment, 2010, 3(1-2): 1231-1242.
     \bibitem{RT-CAN} Wang J, Wu S, Gao H, et al. Indexing multi-dimensional data in a cloud system[C]//Proceedings of the 2010 ACM SIGMOD International Conference on Management of data. ACM, 2010: 591-602.
+    \bibitem{MHR-Tree} Li F, Yao B, Tang M, et al. Spatial approximate string search[J]. IEEE Transactions on Knowledge and Data Engineering, 2012, 25(6): 1394-1409.
 \end{thebibliography}
 
 \end{document}
