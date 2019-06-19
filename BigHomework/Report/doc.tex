@@ -21,16 +21,17 @@
 \section{问题描述}
 \subsection{数据}
 空间对象集合$D = {o_1, o_2, \dots, o_n}$，对于$D$中任意一个对象$o_i = (loc_i, kw_{i, 1}, \dots, kw_{i, m})$，
-即包含$\mathbb{N}$维欧式空间中一个点$loc_i$和一组关键字$kw_{i, 1}, \dots, kw_{i, m}$，记为$o_i.loc = loc_i$和$o_i.kw = \{kw_{i, 1}, \dots, kw_{i, m}\}$。
+即包含$\mathbb{R}^d$维欧式空间中一个点$loc_i$和一组关键字$kw_{i, 1}, \dots, kw_{i, m}$，记为$o_i.loc = loc_i$和$o_i.kw = \{kw_{i, 1}, \dots, kw_{i, m}\}$。
+\textbf{在本项目中主要关注$d = 2$的情况，$\mathbb{R}^2$对于现实中的应用有着很大的价值，但项目中提出的方法可以扩充到任意有限维欧式空间。}
 
 \subsection{范围查询}
-\paragraph{输入：}$Q = (Q_{rs}, Q_{rt})$，其中$Q_{rs}$是一个空间范围（$\mathbb{N}$维欧式空间中的超立方体）；$Q_{rt}$为关键字近似条件，
+\paragraph{输入：}$Q = (Q_{rs}, Q_{rt})$，其中$Q_{rs}$是一个空间范围（$\mathbb{R}^d$维欧式空间中的超立方体）；$Q_{rt}$为关键字近似条件，
 $Q_{rt} = \{(kw_1, \theta_1), \dots, (kw_K, \theta_K)\}$，其中$\theta_i$为阈值。
 \paragraph{输出：}$O = \{o | o \in D, o.loc \in Q.Q_s, \forall(kw_i, \theta_i) \in Q.Q_t, \exists o.kw_j, \mathrm{ED}(kw_j, kw_i) \leq \theta_i\}$，
 其中$\mathrm{ED}(kw_j, kw_i)$表示两个关键字$kw_i$和$kw_j$之间的编辑距离。
 
 \subsection{$k$NN查询}\label{sec:knn_query}
-\paragraph{输入：} $Q = (Q_s, Q_t, k)$，其中$Q_s = loc$是$\mathbb{N}$维欧式空间中一个点，即查询发出的位置；
+\paragraph{输入：} $Q = (Q_s, Q_t, k)$，其中$Q_s = loc$是$\mathbb{R}^d$维欧式空间中一个点，即查询发出的位置；
 $Q_t = \{(kw_1, \theta_1), \dots, (kw_K, \theta_K)\}$；$k$为表示最近邻居的数量。
 \paragraph{输出：}对$O_t = \{o | o \in D, \forall(kw_i, \theta_i) \in Q.Q_t, \exists o.kw_j, \mathrm{ED}(kw_j, kw_i) \leq \theta_i\}$，
 根据$|O_t|$的大小进行定义，
