@@ -1,11 +1,48 @@
 \documentclass{ML}
 \usepackage{amssymb}
 \usepackage{algorithm}
+\usepackage{float}
 \usepackage[noend]{algpseudocode}
+\usepackage{amsmath}
+\newtheorem{theorem}{\hspace{2em}定理}
+\newtheorem{lemma}{Lemma}
+\usepackage{xinttools} % for the \xintFor***
+\usepackage{tikz}
+\usetikzlibrary{calc}
 
-% \usepackage{algorithm}
-% \usepackage{algorithmic}
 
+\def\biglen{20cm} % playing role of infinity (should be < .25\maxdimen)
+% define the "half plane" to be clipped (#1 = half the distance between cells)
+\tikzset{
+  half plane/.style={ to path={
+       ($(\tikztostart)!.5!(\tikztotarget)!#1!(\tikztotarget)!\biglen!90:(\tikztotarget)$)
+    -- ($(\tikztostart)!.5!(\tikztotarget)!#1!(\tikztotarget)!\biglen!-90:(\tikztotarget)$)
+    -- ([turn]0,2*\biglen) -- ([turn]0,2*\biglen) -- cycle}},
+  half plane/.default={1pt}
+}
+
+\def\n{23} % number of random points
+\def\maxxy{4} % random points are in [-\maxxy,\maxxy]x[-\maxxy,\maxxy]
+\makeatletter
+\newenvironment{breakablealgorithm}
+  {% \begin{breakablealgorithm}
+   \begin{center}
+     \refstepcounter{algorithm}% New algorithm
+     \hrule height.8pt depth0pt \kern2pt% \@fs@pre for \@fs@ruled
+     \renewcommand{\caption}[2][\relax]{% Make a new \caption
+       {\raggedright\textbf{\ALG@name~\thealgorithm} ##2\par}%
+       \ifx\relax##1\relax % #1 is \relax
+         \addcontentsline{loa}{algorithm}{\protect\numberline{\thealgorithm}##2}%
+       \else % #1 is not \relax
+         \addcontentsline{loa}{algorithm}{\protect\numberline{\thealgorithm}##1}%
+       \fi
+       \kern2pt\hrule\kern2pt
+     }
+  }{% \end{breakablealgorithm}
+     \kern2pt\hrule\relax% \@fs@post for \@fs@ruled
+   \end{center}
+  }
+  \makeatother
 % 姓名，学号
 \infoauthor{1160300312\ 靳贺霖}{1160300314\ 朱明彦}
 
@@ -21,7 +58,7 @@
 \newpage
 
 \begin{center}
-    \textbf{\zihao{3} 分布式空间近似关键字查询系统}
+  \textbf{\zihao{3} 分布式空间近似关键字查询系统}
 \end{center}
 
 \section{问题描述}
@@ -78,8 +115,8 @@ $$\forall j \neq i, p_j \in D, \mathrm{Dis}(p_j, q) \ge \mathrm{Dis}(p_i, q)$$
 由上述性质以及在\cite{VD-Property}中提到的性质，Voronoi图在处理$k$NN查询和Reverse $k$NN查询有着很好的效果。
 \textbf{在本项目中，主要关注$d = 2$并且使用欧式距离度量的情况。}
 
-\subsection{MHR-Tree\cite{MHR-Tree}}
-MHR-Tree本质上是在R树上增加关键字集合的信息（min-hash签名），并使用基于$q$-gram集合
+\subsection{MHR-Tree}
+MHR-Tree\cite{MHR-Tree}本质上是在R树上增加关键字集合的信息（min-hash签名），并使用基于$q$-gram集合
 的剪枝策略来处理近似关键字的条件。从根节点开始的查询，根据查询关键字$\sigma$和某一个内节点$u$的
 $q$-gram集合$|g_{\sigma} \cap g_u|$的大小来进行剪枝。
 \begin{itemize}
@@ -90,11 +127,63 @@ $q$-gram集合$|g_{\sigma} \cap g_u|$的大小来进行剪枝。
 $$ \widehat{|g_{\sigma} \cap g_u|} = \hat{\rho}(g_{\sigma}, g_u) \times \widehat{|g_{\sigma} \cup g_u|}$$
 
 \subsection{CAN}
-% todo
+CAN(Content Addressable Network)是一种自组织性很强的P2P覆盖网络，一个$d$维的CAN的划分是将一个$d$维的坐标系划分到不同的节点上去。数据是通过一个$hash$函数来将数据的主键划分为$d$维的坐标，从而划分数据到不同的CAN节点上的。对于一个CAN节点$N_i$来说，它会保存所有和$N_i$对应的空间的邻接空间的ip地址，从而形成一个P2P网络。因为CAN网络的自组织性很强，所以一个节点可以很自由地加入或者离开一个CAN，就像P2P网络一样，只需要发送信息更改网络拓扑即可。
 
-\section{索引结构}
-\subsection{二级索引结构（\textit{RT-CAN}）}
-\subsection{本地索引结构（\textit{MVR-Tree}）}
+我们使用的RT-CAN索引的构建是基于一种CAN的变种，$C^2$来实现的。$C^2$除了有CAN的特征外，它还在划分坐标系的每个维度上添加了和弦邻居链接(Chord-like neighbor link)。具体而言，在每个维度上距离为$2^0,2^1,\cdots$的节点上添加链接。因为我们要实现的是分布式空间近似关键字查询，所以我们选择中2维的$C^2$来实现的RT-CAN索引。
+
+我们要处理的是空间近似关键字查询以及$k$NN，R$k$NN近似关键字查询，所以我们的数据的key值就可以看作是2维的位置坐标，这样很自然的就可以想到对CAN的划分也是在2维坐标中而且可以和位置信息对应起来，即$hash$函数不对输入进行转换。
+
+\section{存储}
+\subsection{数据划分}
+数据的划分我们使用的是一种类似于KD树划分的方法。我们知道\cite{KD-Tree-Partition}，KD树有一种划分的算法按照如下的方法进行：
+\begin{enumerate}
+  \item 从方差最高的维度开始，并按照这个维度的数据值对空间进行划分，一般取方差最高的那个维度的值的中值作为划分值；
+  \item 重复在下一个方差最高的维度继续进行划分，直到空间被划分成想要的份数。 
+\end{enumerate}
+我们的划分和这种对KD树的划分有所不同。对于分布式系统，我们更关心的是每个计算节点的数据分配和负载平衡，所以我们对其作一定的修改。首先，设置一个阈值参数$P_{max}$，然后按照如下的方法进行划分：
+\begin{enumerate}
+  \item 判断数据点的数量是否小于$P_{max}$，如果小于则无需划分。否则找到数据中方差最高的维度，按照这个维度的中值作为划分值划分数据；
+  \item 重复对每一个数据点个数大于$P_{max}$的块进行划分：找到块中方差最高的维度，按照这个维度的中值作为划分值划分这个块。 
+\end{enumerate}
+这样，我们就能保证每个块中的数据点数量不少于$P_{max}/2$而且不多于$P_{max}$，保证了一定的负载均衡而且保证数据量不超过阈值$P_{max}$，防止节点负载过大。当数据量大的时候可以选择尽可能较大的$P_{max}$充分利用每个节点的存储计算性能；当数据量小的时候可以适量调小$P_{max}$以便数据更分散地分配到各个节点中提高并行性。
+\section{两层索引结构}
+\subsection{全局索引（RT-CAN）}
+我们使用RT-CAN索引作为我们的第一层索引，即寻找存储节点的索引。RT-CAN索引是一种建立在本地索引之上的索引\cite{RT-CAN}。
+它使用$C^2$网络作为底层存储节点分布，通过定义R树数据节点如何划分到各个存储节点来得到数据的组织方式，并且定义相关算法能对其中的数据进行查询。
+下面首先介绍RT-CAN节点的结构，然后介绍如何构造RT-CAN索引。
+
+\subsubsection{RT-CAN节点结构}
+RT-CAN索引是建立在一个shared-nothing的集群上的。
+如图1所示，集群中的每一个节点$N_i$都包含了两个部分：一个是存储节点$N_{si}$，另一个是覆盖节点$N_{oi}$。
+$N_{si}$表示的是分布式存储的特征，它存储着所有数据划分的一部分。
+为了满足空间近似查询，以及空间近似的$k$NN和R$k$NN查询，$N_{si}$使用了一种R树的变种来存储局部数据，从而满足我们的查询需求。
+$N_{oi}$是用来表示CAN结构化覆盖的部分，它负责的是CAN划分的一部分。
+对于CAN的网络通信来说，$N_{si}$会适应性的选择一部分局部R树的结点，然后通过$N_{oi}$来将这些节点信息发送到CAN网络中。
+发送的信息结果为一个二元组$(ip,mbr)$，其中ip是$N_i$节点的IP地址，$mbr$是这个R树结点的范围。
+当$N{si}$收到$N_{oi}$的发送请求时，$N{si}$就会选择相应的R树结点并将其map成为一个CAN节点，并通过CAN的路由协议将请求发出。
+$N_{oi}$维护着全局索引，当它收到一个广播请求，它就通过map方法判断这是否是它要接受的请求。
+如果时，它就保留一份广播的R树的结点当作索引并保存。这样就能做到用一些R树的结点来当作索引并将其分布在集群中。
+
+\subsubsection{RT-CAN索引构造}
+基于我们的需求，我们使用的是二维的$C^2$来构建我们的RT-CAN索引。
+前面提到我们需要一个map方法将一个R树结点map为一个CAN节点，这样的map方法一般要以这个R树节点的中心和半径来确定。
+对一个二维的R树节点$n$，范围为$[l_1,u_1],[l_2,u_2]$，中心和半径分别表示为$c_n=(\frac{l_1+u_1}{2}),r_n=\frac{1}{2}\sqrt{(u_1-l_1)^2+(u_2-l_2)^2}$。
+首先，对于R树节点$n$，我们首先把它map到包含$n$的中心$c_n$的CAN节点$N_c$上，然后$N_c$会比较$n$半径和定义的一阈值参数$R_{max}$，
+如果$n$的半径小于$R_{max}$，就只需要map给这一个CAN节点，否则就需要将$n$发送给所有和$n$范围覆盖的所有CAN节点。
+这样可能会导致一些副本的出现，但同时也会提升查询的效率，因为只保存一个索引会导致所有相关的搜索都要在网络中查询这个索引，会降低查询效率。
+
+然后，对于索引的构造，对于每个CAN节点，若假设其存储的R树是$L$层的，我们就选择将R树的$L-1$层的所有R树节点发送，因为它们不是经常被更新的，这样就减少了更新索引的次数。然后对每个CAN节点都执行发送的操作，然后就可以按照我们前面提到的map算法来判断如何构造我们的全局索引。
+
+\subsubsection{RT-CAN的性质}
+\begin{theorem}\label{theorem:RT-CAN-1}
+  对一个点查询$Q(key)$，如果我们查询了所有以$key$为圆心，$R_{max}$为半径的的圆覆盖的所有的CAN，那么我们就一能得到完整的结果。
+\end{theorem}
+
+\begin{theorem}\label{theorem:RT-CAN-2}
+  对于一个范围查询$Q(range)$，如果我们查询了所有以$range$的中心为圆心，$R_{max}+range.radius$为半径的源覆盖的所有的CAN，那么我们就一定能得到完整的结果。
+\end{theorem}
+
+\subsection{本地索引（\textit{MVR-Tree}）}
 本地索引结构主要是基于R-Tree\cite{R-Tree}，结合\cite{MHR-Tree}和\cite{VoR-Tree}两篇文章的工作，
 分别取MHR-Tree在处理范围查询上的良好表现，以及Voronoi图在处理$k$NN和R$k$NN上的良好效果，
 所以将本地的索引结构称为\textit{\textbf{MVR-Tree}(\textbf{M}in-wise signature with linear hashing and \textbf{V}oronoi diagram \textbf{R-Tree})}。
@@ -102,11 +191,11 @@ $$ \widehat{|g_{\sigma} \cap g_u|} = \hat{\rho}(g_{\sigma}, g_u) \times \widehat
 由RT-CAN给每个单机分配的内容，我们可以得到的一个R树；% todo 通顺
 根据\cite{VD-Property}中提到的如Fortune's sweepline算法，可以用来构建$D$上的
 Voronoi图，并将Voronoi图中的邻居$VN(o_i)$和每个cell对应的区域$V(o_i)$记录在每个节点$o_i$中；
-另外根据R树每个叶子节点$o_i$的关键字信息，可以计算其对应的$q$-grams $g_{o_i}$和对应的min-wise签名$s(g_{o_i})$，
-并根据所有叶子节点的$s(g_{o_i})$可以递归地自底向上的构建出所有R树内节点的min-wise签名\cite{MHR-Tree}。
+另外根据R树每个叶子节点$o_i$的关键字信息，可以计算其对应的$q$-grams $g_{o_i}$和对应的min-hash签名$s(g_{o_i})$，
+并根据所有叶子节点的$s(g_{o_i})$可以递归地自底向上的构建出所有R树内节点的min-hash签名\cite{MHR-Tree}。
 
 因此，\textbf{\textit{MVR-Tree}是一个R树的变种，并在每个叶子节点$o_i$记录Voronoi图的信息$VN(o_i), V(o_i)$和
-min-wise信息$g_{o_i}, s(g_{o_i})$，以及在每个内节点$u$记录$s(g_u)$。}
+min-hash信息$g_{o_i}, s(g_{o_i})$，以及在每个内节点$u$记录$s(g_u)$。}
 
 \section{查询处理}
 在本地使用MVR-Tree进行范围查询、$k$NN查询和R$k$NN查询，分别是使用\cite{MHR-Tree}
@@ -118,10 +207,25 @@ min-wise信息$g_{o_i}, s(g_{o_i})$，以及在每个内节点$u$记录$s(g_u)$�
 本质上作为R树的性质。所以直接利用\cite{MHR-Tree}和\cite{VoR-Tree}中的相应算法，在MVR-Tree上就可以进行查询，并且可以保证正确性}。
 
 \subsection{Range Query}
-\begin{algorithm}
-  \caption{Range Query(MVR-Tree $R$, $(Q_{rs}, Q_{rt})$)}
+对于\ref{sec:range-query}节所提到的范围查询，$1-8$行根据\cite{RT-CAN}中Range Query的方式
+将查询定位到若干台机器上，$9-27$行是在本地利用MVR-Tree进行查询。其中通过$14-15$行来实现近似关键字查询剪枝；
+通过12行来实现范围上的查询。具体的步骤见算法\ref{alg:range-query}。
+\begin{breakablealgorithm}
+  \caption{Range Query(RT-CAN $Root$, $(Q_{rs}, Q_{rt})$)}
   \label{alg:range-query}
   \begin{algorithmic}[1]
+    \State $S_t = \emptyset$
+    \State $N_{init} = CAN.lookup(Q_{rs}.center)$ \Comment{$Q_{rs}.center$是查询范围$Q_{rs}$的中心}
+    \State $C = generateSearchCircle(Q_{rs}.center, R_{max} + Q_{rs}.radius)$ \Comment{$Q_{rs}.radius$根据定理\ref{theorem:RT-CAN-2}计算}
+    \For{i = 1 to $d$}
+    \State 将$C$根据$l_i, u_i$划分为$R_0, R_1, R_2$
+    \State $C = R_0$
+    \State 将查询信息发送到$N_1, N_2$在上面重复该查询 \Comment{$N_1, N_2$是$N_{init}$的邻居}
+    \EndFor
+    \State $S_i = N_{init}.globalIndex$
+    \For{$\forall I \in S_i$}
+    \If{$I$的区域与$Q_{rs}$有交集}
+    \State 利用$I$找到本地MVR-Tree索引$R$
     \State 将队列$L$和本地结果$O$初始化为$\emptyset$
     \State 将$R$的根节点$u$插入$L$
     \While{$L \neq \emptyset$}
@@ -138,7 +242,7 @@ min-wise信息$g_{o_i}, s(g_{o_i})$，以及在每个内节点$u$记录$s(g_u)$�
     \For{$u$的每个子节点$p_i$}
     \If{$Q_{rs}$和$p_i$的区域存在交集}
     \State 利用\cite{MHR-Tree}中提到的方法估计$\widehat{|g_{kw_i} \cap g_{kw_j}|}$
-    \Comment{$g_{kw_i}$是$p_i$节点的min-hash签名}
+    \Comment{$g_{kw_i}$是$p_i$节点关键字的min-hash签名}
     \If{$\widehat{|g_{kw_i} \cap g_{kw_j}|} \ge |kw_j| - 1 - (\theta_j - 1) * q$}
     \State 将$p_i$插入$L$中
     \EndIf
@@ -146,17 +250,17 @@ min-wise信息$g_{o_i}, s(g_{o_i})$，以及在每个内节点$u$记录$s(g_u)$�
     \EndFor
     \EndIf
     \EndWhile
-    \State 返回$O$
+    \State 输出$O$
+    \EndIf
+    \EndFor
   \end{algorithmic}
-\end{algorithm}
-对于\ref{sec:range-query}节所提到的范围查询，当其经过\textit{RT-CAN}查询到达本地时，% TODO
-即可按照算法\ref{alg:range-query}进行查找。其中通过$14-15$行来实现近似关键字查询剪枝；
-通过12行来实现范围上的查询。
+\end{breakablealgorithm}
+
 \subsection{$k$NN Query}
 对于\ref{sec:knn_query}节提到的$k$NN查询，是利用MVR-Tree先找到距离查询$Q_s$最近的邻居（即$1$-NN），
 根据$1$-NN的结果以及其在Voronoi图上的邻居来实现接下来查询的剪枝，如此相比\cite{MHR-Tree}中直接利用MHR-Tree和
 堆进行的$k$NN查询具有更好的I/O代价\cite{VoR-Tree}。具体的过程如算法\ref{alg:knn-query}所示。
-\begin{algorithm}
+\begin{breakablealgorithm}
     \caption{$k$NN Query(MVR-Tree $R$, $(Q_{s}, Q_{t}, k)$)}
     \label{alg:knn-query}
     \begin{algorithmic}[1]
@@ -196,8 +300,43 @@ min-wise信息$g_{o_i}, s(g_{o_i})$，以及在每个内节点$u$记录$s(g_u)$�
       \State 不存在$1$-NN，算法结束
       \EndIf
     \end{algorithmic}
-  \end{algorithm}
+  \end{breakablealgorithm}
 \subsection{Reverse $k$NN Query}
+
+% 画Voronoi Diagram
+% \begin{tikzpicture}
+%   % generate random points
+%   \pgfmathsetseed{1908} % init random with the year Voronoi published his paper ;)
+%   \def\pts{}
+%   \xintFor* #1 in {\xintSeq {1}{\n}} \do{
+%     \pgfmathsetmacro{\ptx}{.9*\maxxy*rand} % random x in [-.9\maxxy,.9\maxxy]
+%     \pgfmathsetmacro{\pty}{.9*\maxxy*rand} % random y in [-.9\maxxy,.9\maxxy]
+%     \edef\pts{\pts, (\ptx,\pty)} % stock the random point
+%   }
+
+%   % draw the points and their cells
+%   \xintForpair #1#2 in \pts \do{
+%     \edef\pta{#1,#2}
+%     \begin{scope}
+%       \xintForpair \#3#4 in \pts \do{
+%         \edef\ptb{#3,#4}
+%         \ifx\pta\ptb\relax % check if (#1,#2) == (#3,#4) ?
+%           \tikzstyle{myclip}=[];
+%         \else
+%           \tikzstyle{myclip}=[clip];
+%         \fi;
+%         \path[myclip] (#3,#4) to[half plane] (#1,#2);
+%       }
+%       \clip (-\maxxy,-\maxxy) rectangle (\maxxy,\maxxy); % last clip
+%       \pgfmathsetmacro{\randhue}{rnd}
+%       \definecolor{randcolor}{hsb}{\randhue,.5,1}
+%       \fill[randcolor] (#1,#2) circle (4*\biglen); % fill the cell with random color
+%       \fill[draw=red,very thick] (#1,#2) circle (1.4pt); % and draw the point
+%     \end{scope}
+%   }
+%   \pgfresetboundingbox
+%   \draw (-\maxxy,-\maxxy) rectangle (\maxxy,\maxxy);
+% \end{tikzpicture}
 % \section{系统工作流程}
 % 数据导入、索引/样本构建/维护、查询处理
 % \section{实验心得}
@@ -211,6 +350,7 @@ min-wise信息$g_{o_i}, s(g_{o_i})$，以及在每个内节点$u$记录$s(g_u)$�
     \bibitem{VoR-Tree} Sharifzadeh M, Shahabi C. Vor-tree: R-trees with voronoi diagrams for efficient processing of spatial nearest neighbor queries[J]. Proceedings of the VLDB Endowment, 2010, 3(1-2): 1231-1242.
     \bibitem{RT-CAN} Wang J, Wu S, Gao H, et al. Indexing multi-dimensional data in a cloud system[C]//Proceedings of the 2010 ACM SIGMOD International Conference on Management of data. ACM, 2010: 591-602.
     \bibitem{MHR-Tree} Li F, Yao B, Tang M, et al. Spatial approximate string search[J]. IEEE Transactions on Knowledge and Data Engineering, 2012, 25(6): 1394-1409.
+    \bibitem{KD-Tree-Partition} Mishra S, Suman A C. An efficient method of partitioning high volumes of multidimensional data for parallel clustering algorithms[J]. arXiv preprint arXiv:1609.06221, 2016.
 \end{thebibliography}
 
 \end{document}
