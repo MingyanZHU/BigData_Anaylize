@@ -54,6 +54,16 @@ RT-CAN索引是建立在一个shared-nothing的集群上的。如图1所示，�
 
 范围查询和点查询类似，不同的地方就是查询圆的半径不同，我们可以通过相同的查询、分割方法得到范围查询的结果。
 
+## 数据备份
+
+为了使系统有一定的对抗异常状态的容错能力，数据备份是必不可少的，这里我们选择使用primary-secondary的中心副本控制协议来实现数据的备份并维护副本之间的一致性。在primary-secondary协议中，副本被分为两类，其中有一个副本被当作primary副本，它是中心节点，负责维护数据的更新，并发控制以及维护副本之间的一致性等。其他的副本都是secondary副本。
+
+如图2所示，数据更新的过程中，外部的节点发送请求给primary节点，然后primary节点再将更新操作分发给所属它的secondary节点。这个过程我们选择提供最终一致性，即secondary节点和primary节点不一致，需要的只是后续过程中secondary节点能够可以同步到primary一致的状态即可。但是可能发生的问题就是secondary未与primary更新一致的情况下primary节点又收到了一个更新请求，会产生不一致的情况。对于这种情况，我们选择在secondary节点同步到和primary节点过程中，secondary节点同步到primary某个时刻的快照（snapshot）的状态，更新完如果仍不一致则继续更新。
+
+数据更新过程中由于secondary节点的数据可能会落后于primary节点，所以一些存储“旧”数据的secondary节点的部分数据其实是不可用的。为了解决这个问题，我们将secondary节点的状态分为两种：一种是与primary一致的状态，这时可以读取其中的数据；另一种是被标记为不可用的状态，表明secondary节点的数据仍处于被更新的状态从而无法读取其中的数据。从某种意义上来讲，这种方法通过降低了一定的可用性来提高系统的一致性。
+
+primary节点宕机后，选择合适的primary副本进行替换也是很重要的一个问题。和更新类似，选择一个状态为和primary节点一致的secondary节点替换primary节点即可。但是可能存在的状态是所有的secondary节点都恰好是不可用的状态，对于这种情况，我们选择通过日志来对secondary的记录进行恢复。设置检查点（checkpoint），在检查点之后将secondary节点的数据利用日志记录进行更新，使其成为primary节点宕机前的状态即可。
+
 ## 参考文献
 
 [1] Wang J, Wu S, Gao H, et al. Indexing multi-dimensional data in a cloud system[C]// Acm Sigmod International Conference on Management of Data. 2010.
