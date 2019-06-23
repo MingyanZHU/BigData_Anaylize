@@ -135,7 +135,7 @@ CAN(Content Addressable Network)是一种自组织性很强的P2P覆盖网络，
 我们要处理的是空间近似关键字查询以及$k$NN，R$k$NN近似关键字查询，所以我们的数据的key值就可以看作是2维的位置坐标，这样很自然的就可以想到对CAN的划分也是在2维坐标中而且可以和位置信息对应起来，即$hash$函数不对输入进行转换。
 
 \section{存储}
-\subsection{数据划分}
+\subsection{数据划分}\label{sec:data-partition}
 数据的划分我们使用的是一种类似于KD树划分的方法。我们知道\cite{KD-Tree-Partition}，KD树有一种划分的算法按照如下的方法进行：
 \begin{enumerate}
   \item 从方差最高的维度开始，并按照这个维度的数据值对空间进行划分，一般取方差最高的那个维度的值的中值作为划分值；
@@ -207,6 +207,11 @@ Voronoi图，并将Voronoi图中的邻居$VN(o_i)$和每个cell对应的区域$V
 因此，\textbf{\textit{MVR-Tree}是一个R树的变种，并在每个叶子节点$o_i$记录Voronoi图的信息$VN(o_i), V(o_i)$和
 min-hash信息$g_{o_i}, s(g_{o_i})$，以及在每个内节点$u$记录$s(g_u)$。}
 
+\subsection{二级索引维护}
+数据的插入和删除最终都可以定位到局部R树的插入和删除，从而可能会引起一些R树节点发生变化。如果引起变化的结点是已经发送到全局索引的节点的话，这时候就会产生一部分的“脏”索引，通过这些索引查找结果很可能会将查找引导到不正确的存储节点上。
+
+为了解决这个问题，对于已经发送到全局作为索引的R树结点$n_{old}$，会给其一个标记表示这个节点已被发送到全局索引。如果插入和删除动作导致$n_{old}$分割或者合并的话，我们需要重新将这个新的R树节点集合$S_{new}$发送，从而替代之前发送的已经
+过时的索引。替代过程分删除源索引和添加新索引两部分。因为$n_{old}$和$S_{new}$中各结点的中心和半径不同，所以要按$n_{old}$的中心和半径发布删除信息将旧的索引结点全都删除；然后对于$S_{new}$中的各个节点，按照它们的中心和半径发送索引消息作为新的全局索引存储即可。
 \section{查询处理}
 在本地使用MVR-Tree进行范围查询、$k$NN查询和R$k$NN查询，分别是使用\cite{MHR-Tree}
 中针对range query的方法和使用\cite{VoR-Tree}中针对$k$NN和R$k$NN的方法来实现。
@@ -266,98 +271,15 @@ min-hash信息$g_{o_i}, s(g_{o_i})$，以及在每个内节点$u$记录$s(g_u)$�
   \end{algorithmic}
 \end{breakablealgorithm}
 
-以图\ref{fig:range-query-example}为例，当查询$Q$来到式，首先确定查询范围与有交集的
-机器，并将查询发往相应的机器上。在本例中，$Q$会发往$N_1$和$N_2$两台机器。此后，就进入本地的查询即可。
-
-在$N_1$上查询，判断其两个儿子$N3, N_4$的MBR与查询范围$r$判断是否存在交集，
-显然可以将$N_3$剪枝掉，查询进入$N_4$。再依次将$N_4$的儿子节点$p_4, p_5, p_3$加入队列，
-其中$p_3$在$r$之外，直接剪枝。依次判断$p_4$，与关键字的编辑距离恰好为$2$，输出$p_4$。
-在$N_2$机器上的查询与此过程类似。
-
-\begin{figure}[H]
-  \centering
-  \begin{tikzpicture}
-    % generate random points
-    \pgfmathsetseed{1908} % init random with the year Voronoi published his paper ;)
-    \def\pts{(0, -1), (2, 0), (1, -2), (3, -1), (4, 2), (5, -1), (-1, 1), (-2, 1), (-3, -2), (-4, 2), (-5, 0)}
-    % \xintFor* #1 in {\xintSeq {1}{\n}} \do{
-    %   \pgfmathsetmacro{\ptx}{.9*\maxxy*rand} % random x in [-.9\maxxy,.9\maxxy]
-    %   \pgfmathsetmacro{\pty}{.9*\maxxy*rand} % random y in [-.9\maxxy,.9\maxxy]
-    %   \edef\pts{\pts, (\ptx,\pty)} % stock the random point
-    % }
-  
-    % draw the points and their cells
-    \xintForpair #1#2 in \pts \do{
-      \edef\pta{#1,#2}
-      \begin{scope}
-        \xintForpair \#3#4 in \pts \do{
-          \edef\ptb{#3,#4}
-          \ifx\pta\ptb\relax % check if (#1,#2) == (#3,#4) ?
-            \tikzstyle{myclip}=[];
-          \else
-            \tikzstyle{myclip}=[clip];
-          \fi;
-          \path[myclip] (#3,#4) to[half plane] (#1,#2);
-        }
-        \clip (-\maxxy,-\maxy) rectangle (\maxxy,\maxy); % last clip
-        \pgfmathsetmacro{\randhue}{rnd}
-        \definecolor{randcolor}{hsb}{\randhue,.5,1}
-        % \fill[randcolor] (#1,#2) circle (4*\biglen); % fill the cell with random color
-        \fill[fill={rgb:black,1;white,2}] (#1, #2) circle (4*\biglen);
-        \fill[draw=red,very thick] (#1,#2) circle (1.4pt); % and draw the point
-      \end{scope}
-    }
-    \pgfresetboundingbox
-    \draw (-\maxxy,-\maxy) rectangle (\maxxy,\maxy);
-    \draw[thick] (-5, 0) rectangle (-4, 2);
-    \draw[thick] (-3, -2) rectangle (-1, 1);
-    \draw[thick] (-5, -2) rectangle (-1, 2);
-    \draw[thick] (0, -2) rectangle (2, 0);
-    \draw[thick] (3, -2) rectangle (5, 2);
-    \draw[thick] (0, -2) rectangle (5, 2);
-    \draw[-latex] (-6, -4) -- (-6, 4);
-    \draw[-latex] (-6.5, -3) -- (6.5, -3);
-    \foreach \i in {-5, -4,...,6}
-    {
-      \draw (\i, -3) -- (\i, -3.25) node[below] {\i};
-    }
-    \foreach \ii in {-3, -2,...,3}
-    {
-      \draw (-6, \ii) -- (-6.25, \ii) node[left] {\ii};
-    }
-    \draw[very thick] (-0.5, 4) -- (-0.5, -4);
-    \node[above] (p1) at (-4, 2) {$p_1$:Moe's};
-    \node[below right] (p2) at (-5, 0) {$p_2$:ymca club};
-    \node[below] (p3) at (-3, -2) {$p_3$:theaters};
-    \node[above] (p4) at (-2, 1) {$p_4$:theater};
-    \node[above right] (p5) at(-1, 1) {$p_5$:hospital};
-    \node[right] (p6) at(0, -1){$p_6$:theatre};
-    \node[below] (p7) at(1, -2){$p_7$:grocery};
-    \node[above] (p8) at(2, 0) {$p_8$:gym};
-    \node[below] (p9) at(3, -1){$p_9$:barnes noble};
-    \node[above] (p10) at(5, -1) {$p_{10}$:shaw's market}; 
-    \node[above] (p11) at(4, 2) {$p_{11}$:commonwealth ave};
-    \draw[thick, dashed, blue] (-2.5, -2.5) rectangle (1.5, 1.5);
-    \draw[->, blue] (-0.5, 1.5) -- (0, 2.5);
-    \node[above] (query) at (0, 2.5) {$\bm{Q = (r, \{(theatre, 2)\})}$};
-    \node[above] (n1) at (-2, 2) {$N_1$};
-    \node[above] (n2) at (1, 2) {$N_2$};
-    \node (n3) at (-4.5, 1) {$N_3$};
-    \node (n4) at (-2, -1) {$N_4$};
-    \node (n5) at (1, -0.5) {$N_5$};
-    \node (n6) at (4, 1) {$N_6$};
-  \end{tikzpicture}
-  \caption{Range Query示例}\label{fig:range-query-example}
-\end{figure}
-
-\subsection{$k$NN Query}
+\subsection{$k$NN Query}\label{sec:algo-knn}
 对于\ref{sec:knn_query}节提到的$k$NN查询，是利用MVR-Tree先找到距离查询$Q_s$最近的邻居（即$1$-NN），
 根据$1$-NN的结果以及其在Voronoi图上的邻居来实现接下来查询的剪枝，如此相比\cite{MHR-Tree}中直接利用MHR-Tree和
-堆进行的$k$NN查询具有更好的I/O代价\cite{VoR-Tree}。具体的过程如算法\ref{alg:knn-query}所示。
+堆进行的$k$NN查询具有更好的I/O代价\cite{VoR-Tree}。具体的过程如算法\ref{alg:1nn-query}和\ref{algo:knn-query}所示。
 \begin{breakablealgorithm}
-    \caption{$k$NN Query(MVR-Tree $R$, $(Q_{s}, Q_{t}, k)$)}
-    \label{alg:knn-query}
+    \caption{$1$NN Query(RT-CAN $Root$, $(Q_{s}, Q_{t}, k)$)}
+    \label{alg:1nn-query}
     \begin{algorithmic}[1]
+      \State 根据$Q_s$将查询定位到某一台机器$N$上，得到$N$上MVR-Tree根节点$R$
       \State 将小顶堆$H$初始化为$\emptyset$，$bestDist = \infty$，$bestNN = null$
       \State 将$R$的根节点$r$插入$H$，即$H = \{(r, 0)\}$
       \While{$H \neq \emptyset$}
@@ -377,9 +299,17 @@ min-hash信息$g_{o_i}, s(g_{o_i})$，以及在每个内节点$u$记录$s(g_u)$�
       \EndFor
       \EndIf
       \EndWhile
+    \end{algorithmic}
+  \end{breakablealgorithm}
+
+  \begin{breakablealgorithm}
+    \caption{$k$NN Query(MVR-Tree $R$, $bestNN$, ($Q_s, Q_t, k$), $counter$)}
+    \label{algo:knn-query}
+    \begin{algorithmic}
       \If{$bestNN != null$}
+      \State 将小顶堆$H$初始化为$\emptyset$
       \State 将$H$弹空，将$(bestNN, \mathrm{Dis}(bestNN, Q_s))$插入$H$
-      \State $Visited = \{bestNN\};counter = 0;$
+      \State $Visited = \{bestNN\};$
       \While{$counter < k$}
       \State $counter++;$
       \State 取$H$的堆顶元素$p$，并将其弹出
@@ -387,6 +317,9 @@ min-hash信息$g_{o_i}, s(g_{o_i})$，以及在每个内节点$u$记录$s(g_u)$�
       \For{对$p$的每个Voronoi图邻居$p'$}
       \If{$p' \notin Visited$}
       \State 将$p'$加入$Visited$，并且将$\mathrm{Dis}(p', Q_s)$插入$H$
+      \EndIf
+      \If{$p'$不属于该机器}
+      \State 将$H,Visited,counter$发往$p'$所在机器
       \EndIf
       \EndFor
       \EndWhile
@@ -462,80 +395,397 @@ min-hash信息$g_{o_i}, s(g_{o_i})$，以及在每个内节点$u$记录$s(g_u)$�
 %   \node[above] (p11) at(4, 2) {$p_{11}$:commonwealth ave};
 % \end{tikzpicture}
 
+\section{系统工作流程}
+\subsection{原始数据}
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}
+    % generate random points
+    \pgfmathsetseed{1908} % init random with the year Voronoi published his paper ;)
+    \def\pts{(0, -1), (2, 0), (1, -2), (3, -1), (4, 2), (5, -1), (-1, 1), (-2, 1), (-3.5, -2), (-4, 2), (-5, 0)}
+    % \xintFor* #1 in {\xintSeq {1}{\n}} \do{
+    %   \pgfmathsetmacro{\ptx}{.9*\maxxy*rand} % random x in [-.9\maxxy,.9\maxxy]
+    %   \pgfmathsetmacro{\pty}{.9*\maxxy*rand} % random y in [-.9\maxxy,.9\maxxy]
+    %   \edef\pts{\pts, (\ptx,\pty)} % stock the random point
+    % }
+  
+    % draw the points and their cells
+    \xintForpair #1#2 in \pts \do{
+      \edef\pta{#1,#2}
+      \begin{scope}
+        \xintForpair \#3#4 in \pts \do{
+          \edef\ptb{#3,#4}
+          \ifx\pta\ptb\relax % check if (#1,#2) == (#3,#4) ?
+            \tikzstyle{myclip}=[];
+          \else
+            \tikzstyle{myclip}=[clip];
+          \fi;
+          \path[myclip] (#3,#4) to[half plane] (#1,#2);
+        }
+        \clip (-\maxxy,-\maxy) rectangle (\maxxy,\maxy); % last clip
+        \pgfmathsetmacro{\randhue}{rnd}
+        \definecolor{randcolor}{hsb}{\randhue,.5,1}
+        % \fill[randcolor] (#1,#2) circle (4*\biglen); % fill the cell with random color
+        % \fill[fill={rgb:black,1;white,2}] (#1, #2) circle (4*\biglen);
+        \fill[draw=red,very thick] (#1,#2) circle (1.4pt); % and draw the point
+      \end{scope}
+    }
+    \pgfresetboundingbox
+    % \draw (-\maxxy,-\maxy) rectangle (\maxxy,\maxy);
+    % \draw[thick] (-5, 0) rectangle (-4, 2);
+    % \draw[thick] (-3, -2) rectangle (-1, 1);
+    % \draw[thick] (-5, -2) rectangle (-1, 2);
+    % \draw[thick] (0, -2) rectangle (2, 0);
+    % \draw[thick] (3, -2) rectangle (5, 2);
+    % \draw[thick] (0, -2) rectangle (5, 2);
+    \draw[-latex] (-6, -4) -- (-6, 4);
+    \draw[-latex] (-6.5, -3) -- (6.5, -3);
+    \foreach \i in {-5, -4,...,6}
+    {
+      \draw (\i, -3) -- (\i, -3.25) node[below] {\i};
+    }
+    \foreach \ii in {-3, -2,...,3}
+    {
+      \draw (-6, \ii) -- (-6.25, \ii) node[left] {\ii};
+    }
+    % \draw[very thick] (-0.5, 4) -- (-0.5, -4);
+    \node[above] (p1) at (-4, 2) {$p_1$:Moe's};
+    \node[below right] (p2) at (-5, 0) {$p_2$:ymca club};
+    \node[below] (p3) at (-3, -2) {$p_3$:theaters};
+    \node[above] (p4) at (-2, 1) {$p_4$:theater};
+    \node[above right] (p5) at(-1, 1) {$p_5$:hospital};
+    \node[right] (p6) at(0, -1){$p_6$:theatre};
+    \node[below] (p7) at(1, -2){$p_7$:grocery};
+    \node[above] (p8) at(2, 0) {$p_8$:gym};
+    \node[below] (p9) at(3, -1){$p_9$:barnes noble};
+    \node[above] (p10) at(5, -1) {$p_{10}$:shaw's market}; 
+    \node[above] (p11) at(4, 2) {$p_{11}$:commonwealth ave};
+  \end{tikzpicture}
+  \caption{原始数据} \label{fig:origin-data}
+\end{figure}
+系统开始工作时存在原始数据，其定义符合\ref{sec:data}节的定义，具体如图\ref{fig:origin-data}
+所示，每个数据中包含$(loc_x, loc_y)$一个二维坐标和一个关键字$kw$。
 
-\begin{tikzpicture}
-  % generate random points
-  \pgfmathsetseed{1908} % init random with the year Voronoi published his paper ;)
-  \def\pts{(0, -1), (2, 0), (1, -2), (3, -1), (4, 2), (5, -1), (-1, 1), (-2, 1), (-3, -2), (-4, 2), (-5, 0)}
-  % \xintFor* #1 in {\xintSeq {1}{\n}} \do{
-  %   \pgfmathsetmacro{\ptx}{.9*\maxxy*rand} % random x in [-.9\maxxy,.9\maxxy]
-  %   \pgfmathsetmacro{\pty}{.9*\maxxy*rand} % random y in [-.9\maxxy,.9\maxxy]
-  %   \edef\pts{\pts, (\ptx,\pty)} % stock the random point
-  % }
-
-  % draw the points and their cells
-  \xintForpair #1#2 in \pts \do{
-    \edef\pta{#1,#2}
-    \begin{scope}
-      \xintForpair \#3#4 in \pts \do{
-        \edef\ptb{#3,#4}
-        \ifx\pta\ptb\relax % check if (#1,#2) == (#3,#4) ?
-          \tikzstyle{myclip}=[];
-        \else
-          \tikzstyle{myclip}=[clip];
-        \fi;
-        \path[myclip] (#3,#4) to[half plane] (#1,#2);
-      }
-      \clip (-\maxxy,-\maxy) rectangle (\maxxy,\maxy); % last clip
-      \pgfmathsetmacro{\randhue}{rnd}
-      \definecolor{randcolor}{hsb}{\randhue,.5,1}
-      % \fill[randcolor] (#1,#2) circle (4*\biglen); % fill the cell with random color
-      \fill[fill={rgb:black,1;white,2}] (#1, #2) circle (4*\biglen);
-      \fill[draw=red,very thick] (#1,#2) circle (1.4pt); % and draw the point
-    \end{scope}
-  }
-  \pgfresetboundingbox
-  \draw (-\maxxy,-\maxy) rectangle (\maxxy,\maxy);
-  \draw[thick] (-5, 0) rectangle (-4, 2);
-  \draw[thick] (-3, -2) rectangle (-1, 1);
-  \draw[thick] (-5, -2) rectangle (-1, 2);
-  \draw[thick] (0, -2) rectangle (2, 0);
-  \draw[thick] (3, -2) rectangle (5, 2);
-  \draw[thick] (0, -2) rectangle (5, 2);
-  \draw[-latex] (-6, -4) -- (-6, 4);
-  \draw[-latex] (-6.5, -3) -- (6.5, -3);
-  \foreach \i in {-5, -4,...,6}
-  {
-    \draw (\i, -3) -- (\i, -3.25) node[below] {\i};
-  }
-  \foreach \ii in {-3, -2,...,3}
-  {
-    \draw (-6, \ii) -- (-6.25, \ii) node[left] {\ii};
-  }
-  \draw[very thick] (-0.5, 4) -- (-0.5, -4);
-  \node[above] (p1) at (-4, 2) {$p_1$:Moe's};
-  \node[below right] (p2) at (-5, 0) {$p_2$:ymca club};
-  \node[below] (p3) at (-3, -2) {$p_3$:theaters};
-  \node[above] (p4) at (-2, 1) {$p_4$:theater};
-  \node[above right] (p5) at(-1, 1) {$p_5$:hospital};
-  \node[right] (p6) at(0, -1){$p_6$:theatre};
-  \node[below] (p7) at(1, -2){$p_7$:grocery};
-  \node[above] (p8) at(2, 0) {$p_8$:gym};
-  \node[below] (p9) at(3, -1){$p_9$:barnes noble};
-  \node[above] (p10) at(5, -1) {$p_{10}$:shaw's market}; 
-  \node[above] (p11) at(4, 2) {$p_{11}$:commonwealth ave};
-  \node[right] (q) at (-1.8, 0) {$q$};
-  \fill[draw=blue,very thick] (-1.8, 0) circle (1.4pt);
-  \node[above] (n1) at (-2, 2) {$N_1$};
+\subsection{数据导入}
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}
+    % generate random points
+    \pgfmathsetseed{1908} % init random with the year Voronoi published his paper ;)
+    \def\pts{(0, -1), (2, 0), (1, -2), (3, -1), (4, 2), (5, -1), (-1, 1), (-2, 1), (-3.5, -2), (-4, 2), (-5, 0)}
+    % \xintFor* #1 in {\xintSeq {1}{\n}} \do{
+    %   \pgfmathsetmacro{\ptx}{.9*\maxxy*rand} % random x in [-.9\maxxy,.9\maxxy]
+    %   \pgfmathsetmacro{\pty}{.9*\maxxy*rand} % random y in [-.9\maxxy,.9\maxxy]
+    %   \edef\pts{\pts, (\ptx,\pty)} % stock the random point
+    % }
+  
+    % draw the points and their cells
+    \xintForpair #1#2 in \pts \do{
+      \edef\pta{#1,#2}
+      \begin{scope}
+        \xintForpair \#3#4 in \pts \do{
+          \edef\ptb{#3,#4}
+          \ifx\pta\ptb\relax % check if (#1,#2) == (#3,#4) ?
+            \tikzstyle{myclip}=[];
+          \else
+            \tikzstyle{myclip}=[clip];
+          \fi;
+          \path[myclip] (#3,#4) to[half plane] (#1,#2);
+        }
+        \clip (-\maxxy,-\maxy) rectangle (\maxxy,\maxy); % last clip
+        \pgfmathsetmacro{\randhue}{rnd}
+        \definecolor{randcolor}{hsb}{\randhue,.5,1}
+        % \fill[randcolor] (#1,#2) circle (4*\biglen); % fill the cell with random color
+        \fill[fill={rgb:black,1;white,2}] (#1, #2) circle (4*\biglen);
+        \fill[draw=red,very thick] (#1,#2) circle (1.4pt); % and draw the point
+      \end{scope}
+    }
+    \pgfresetboundingbox
+    \draw (-\maxxy,-\maxy) rectangle (\maxxy,\maxy);
+    % \draw[thick] (-5, 0) rectangle (-4, 2);
+    % \draw[thick] (-3, -2) rectangle (-1, 1);
+    % \draw[thick] (-5, -2) rectangle (-1, 2);
+    % \draw[thick] (0, -2) rectangle (2, 0);
+    % \draw[thick] (3, -2) rectangle (5, 2);
+    % \draw[thick] (0, -2) rectangle (5, 2);
+    \draw[-latex] (-6, -4) -- (-6, 4);
+    \draw[-latex] (-6.5, -3) -- (6.5, -3);
+    \foreach \i in {-5, -4,...,6}
+    {
+      \draw (\i, -3) -- (\i, -3.25) node[below] {\i};
+    }
+    \foreach \ii in {-3, -2,...,3}
+    {
+      \draw (-6, \ii) -- (-6.25, \ii) node[left] {\ii};
+    }
+    % \draw[very thick] (-0.5, 4) -- (-0.5, -4);
+    \node[above] (p1) at (-4, 2) {$p_1$:Moe's};
+    \node[below right] (p2) at (-5, 0) {$p_2$:ymca club};
+    \node[below] (p3) at (-3, -2) {$p_3$:theaters};
+    \node[above] (p4) at (-2, 1) {$p_4$:theater};
+    \node[above right] (p5) at(-1, 1) {$p_5$:hospital};
+    \node[right] (p6) at(0, -1){$p_6$:theatre};
+    \node[below] (p7) at(1, -2){$p_7$:grocery};
+    \node[above] (p8) at(2, 0) {$p_8$:gym};
+    \node[below] (p9) at(3, -1){$p_9$:barnes noble};
+    \node[above] (p10) at(5, -1) {$p_{10}$:shaw's market}; 
+    \node[above] (p11) at(4, 2) {$p_{11}$:commonwealth ave};
+  \end{tikzpicture}
+  \caption{数据预处理} \label{fig:pre-processing-data}
+\end{figure}
+在进行数据划分前，首先对数据进行预处理，构造出$D$对应的Voronoi图，并将每个数据的邻居节点$VN(p_i)$和cell内包含的节点$V(p_i)$记录在叶子节点$p_i$上。
+如对于$p_4$而言，其叶子节点中记录Voronoi图中的邻居$\{p_1, p_2, p_3, p_5, p_6\}$，所有的记录都是位置（在本例中即二维坐标）。
+如图\ref{fig:pre-processing-data}所示。
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}
+    % generate random points
+    \pgfmathsetseed{1908} % init random with the year Voronoi published his paper ;)
+    \def\pts{(0, -1), (2, 0), (1, -2), (3, -1), (4, 2), (5, -1), (-1, 1), (-2, 1), (-3.5, -2), (-4, 2), (-5, 0)}
+    % \xintFor* #1 in {\xintSeq {1}{\n}} \do{
+    %   \pgfmathsetmacro{\ptx}{.9*\maxxy*rand} % random x in [-.9\maxxy,.9\maxxy]
+    %   \pgfmathsetmacro{\pty}{.9*\maxxy*rand} % random y in [-.9\maxxy,.9\maxxy]
+    %   \edef\pts{\pts, (\ptx,\pty)} % stock the random point
+    % }
+  
+    % draw the points and their cells
+    \xintForpair #1#2 in \pts \do{
+      \edef\pta{#1,#2}
+      \begin{scope}
+        \xintForpair \#3#4 in \pts \do{
+          \edef\ptb{#3,#4}
+          \ifx\pta\ptb\relax % check if (#1,#2) == (#3,#4) ?
+            \tikzstyle{myclip}=[];
+          \else
+            \tikzstyle{myclip}=[clip];
+          \fi;
+          \path[myclip] (#3,#4) to[half plane] (#1,#2);
+        }
+        \clip (-\maxxy,-\maxy) rectangle (\maxxy,\maxy); % last clip
+        \pgfmathsetmacro{\randhue}{rnd}
+        \definecolor{randcolor}{hsb}{\randhue,.5,1}
+        % \fill[randcolor] (#1,#2) circle (4*\biglen); % fill the cell with random color
+        \fill[fill={rgb:black,1;white,2}] (#1, #2) circle (4*\biglen);
+        \fill[draw=red,very thick] (#1,#2) circle (1.4pt); % and draw the point
+      \end{scope}
+    }
+    \pgfresetboundingbox
+    \draw (-\maxxy,-\maxy) rectangle (\maxxy,\maxy);
+    \draw[thick] (-5, 0) rectangle (-4, 2);
+    \draw[thick] (-3.5, -2) rectangle (-1, 1);
+    \draw[thick] (-5, -2) rectangle (-1, 2);
+    \draw[thick] (0, -2) rectangle (2, 0);
+    \draw[thick] (3, -2) rectangle (5, 2);
+    \draw[thick] (0, -2) rectangle (5, 2);
+    \draw[-latex] (-6, -4) -- (-6, 4);
+    \draw[-latex] (-6.5, -3) -- (6.5, -3);
+    \foreach \i in {-5, -4,...,6}
+    {
+      \draw (\i, -3) -- (\i, -3.25) node[below] {\i};
+    }
+    \foreach \ii in {-3, -2,...,3}
+    {
+      \draw (-6, \ii) -- (-6.25, \ii) node[left] {\ii};
+    }
+    \draw[very thick] (-0.5, 4) -- (-0.5, -4);
+    \node[below] (data-partition-1) at (-0.5, -4) {$P$};
+    \node[above] (data-partition-2) at (-0.5, 4) {$D$};
+    \node[above] (p1) at (-4, 2) {$p_1$:Moe's};
+    \node[below right] (p2) at (-5, 0) {$p_2$:ymca club};
+    \node[below] (p3) at (-3.5, -2) {$p_3$:theaters};
+    \node[above] (p4) at (-2, 1) {$p_4$:theater};
+    \node[above right] (p5) at(-1, 1) {$p_5$:hospital};
+    \node[right] (p6) at(0, -1){$p_6$:theatre};
+    \node[below] (p7) at(1, -2){$p_7$:grocery};
+    \node[above] (p8) at(2, 0) {$p_8$:gym};
+    \node[below] (p9) at(3, -1){$p_9$:barnes noble};
+    \node[above] (p10) at(5, -1) {$p_{10}$:shaw's market}; 
+    \node[above] (p11) at(4, 2) {$p_{11}$:commonwealth ave};
+    \node[above] (n1) at (-2, 2) {$N_1$};
     \node[above] (n2) at (1, 2) {$N_2$};
     \node (n3) at (-4.5, 1) {$N_3$};
     \node (n4) at (-2, -1) {$N_4$};
     \node (n5) at (1, -0.5) {$N_5$};
     \node (n6) at (4, 1) {$N_6$};
-\end{tikzpicture}
+  \end{tikzpicture}
+  \caption{数据划分与索引构建} \label{fig:data-partition}
+\end{figure}
+利用\ref{sec:data-partition}节提到的数据划分策略，会选择在横坐标（方差更大）的中位数作为划分，默认中位数属于右侧，
+则设定阈值$P_{max} = 6$，整体共有数据$11$个，可以得到示意性划分，如图\ref{fig:data-partition}所示，处在$DP$线两侧的数据各属一台机器，各自是一棵MVR-Tree。
 
-% \section{系统工作流程}
-% 数据导入、索引/样本构建/维护、查询处理
+\subsection{查询处理}
+\subsubsection{Range Query处理}
+以图\ref{fig:range-query-example}为例，当查询$Q = (r, \{(theatre, 2)\})$来到时，首先确定查询范围与有交集的
+机器，并将查询发往相应的机器上。在本例中，$Q$会发往$N_1$和$N_2$两台机器。此后，就进入本地的查询即可。
+
+在$N_1$上查询，判断其两个儿子$N3, N_4$的MBR与查询范围$r$判断是否存在交集，
+显然可以将$N_3$剪枝掉，查询进入$N_4$。再依次将$N_4$的儿子节点$p_4, p_5, p_3$加入队列，
+其中$p_3$在$r$之外，直接剪枝。依次判断$p_4$，与关键字的编辑距离恰好为$2$，输出$p_4$。
+在$N_2$机器上的查询与此过程类似。
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}
+    % generate random points
+    \pgfmathsetseed{1908} % init random with the year Voronoi published his paper ;)
+    \def\pts{(0, -1), (2, 0), (1, -2), (3, -1), (4, 2), (5, -1), (-1, 1), (-2, 1), (-3.5, -2), (-4, 2), (-5, 0)}
+    % \xintFor* #1 in {\xintSeq {1}{\n}} \do{
+    %   \pgfmathsetmacro{\ptx}{.9*\maxxy*rand} % random x in [-.9\maxxy,.9\maxxy]
+    %   \pgfmathsetmacro{\pty}{.9*\maxxy*rand} % random y in [-.9\maxxy,.9\maxxy]
+    %   \edef\pts{\pts, (\ptx,\pty)} % stock the random point
+    % }
+  
+    % draw the points and their cells
+    \xintForpair #1#2 in \pts \do{
+      \edef\pta{#1,#2}
+      \begin{scope}
+        \xintForpair \#3#4 in \pts \do{
+          \edef\ptb{#3,#4}
+          \ifx\pta\ptb\relax % check if (#1,#2) == (#3,#4) ?
+            \tikzstyle{myclip}=[];
+          \else
+            \tikzstyle{myclip}=[clip];
+          \fi;
+          \path[myclip] (#3,#4) to[half plane] (#1,#2);
+        }
+        \clip (-\maxxy,-\maxy) rectangle (\maxxy,\maxy); % last clip
+        \pgfmathsetmacro{\randhue}{rnd}
+        \definecolor{randcolor}{hsb}{\randhue,.5,1}
+        % \fill[randcolor] (#1,#2) circle (4*\biglen); % fill the cell with random color
+        \fill[fill={rgb:black,1;white,2}] (#1, #2) circle (4*\biglen);
+        \fill[draw=red,very thick] (#1,#2) circle (1.4pt); % and draw the point
+      \end{scope}
+    }
+    \pgfresetboundingbox
+    \draw (-\maxxy,-\maxy) rectangle (\maxxy,\maxy);
+    \draw[thick] (-5, 0) rectangle (-4, 2);
+    \draw[thick] (-3.5, -2) rectangle (-1, 1);
+    \draw[thick] (-5, -2) rectangle (-1, 2);
+    \draw[thick] (0, -2) rectangle (2, 0);
+    \draw[thick] (3, -2) rectangle (5, 2);
+    \draw[thick] (0, -2) rectangle (5, 2);
+    \draw[-latex] (-6, -4) -- (-6, 4);
+    \draw[-latex] (-6.5, -3) -- (6.5, -3);
+    \foreach \i in {-5, -4,...,6}
+    {
+      \draw (\i, -3) -- (\i, -3.25) node[below] {\i};
+    }
+    \foreach \ii in {-3, -2,...,3}
+    {
+      \draw (-6, \ii) -- (-6.25, \ii) node[left] {\ii};
+    }
+    \draw[very thick] (-0.5, 4) -- (-0.5, -4);
+    \node[above] (p1) at (-4, 2) {$p_1$:Moe's};
+    \node[below right] (p2) at (-5, 0) {$p_2$:ymca club};
+    \node[below] (p3) at (-3.5, -2) {$p_3$:theaters};
+    \node[above] (p4) at (-2, 1) {$p_4$:theater};
+    \node[above right] (p5) at(-1, 1) {$p_5$:hospital};
+    \node[right] (p6) at(0, -1){$p_6$:theatre};
+    \node[below] (p7) at(1, -2){$p_7$:grocery};
+    \node[above] (p8) at(2, 0) {$p_8$:gym};
+    \node[below] (p9) at(3, -1){$p_9$:barnes noble};
+    \node[above] (p10) at(5, -1) {$p_{10}$:shaw's market}; 
+    \node[above] (p11) at(4, 2) {$p_{11}$:commonwealth ave};
+    \draw[thick, dashed, blue] (-2.5, -2.5) rectangle (1.5, 1.5);
+    \draw[->, blue] (-0.5, 1.5) -- (0, 2.5);
+    \node[above] (n1) at (-2, 2) {$N_1$};
+    \node[above] (n2) at (1, 2) {$N_2$};
+    \node (n3) at (-4.5, 1) {$N_3$};
+    \node (n4) at (-2, -1) {$N_4$};
+    \node (n5) at (1, -0.5) {$N_5$};
+    \node (n6) at (4, 1) {$N_6$};
+    \node[below] (data-partition-1) at (-0.5, -4) {$P$};
+    \node[above] (data-partition-2) at (-0.5, 4) {$D$};
+    \node[above] (query) at (0, 2.5) {$\bm{Q = (r, \{(theatre, 2)\})}$};
+  \end{tikzpicture}
+  \caption{Range Query示例}\label{fig:range-query-example}
+\end{figure}
+
+\subsubsection{$k$NN查询处理}
+对于$k$NN查询$q$，首先系统会使用全局索引根据其位置将其定位到某台机器，在本例中根据$q$的位置$r_q$会将其定位到$DP$左侧的机器上，
+并将查询发往对应机器的MVR-Tree根节点$N_1$，$N_1$利用\ref{sec:algo-knn}节提到的算法，将$(N_4, 0), (N_3, 2)$插入堆中。
+将堆顶元素$(N_4, 0)$弹出，将其子节点$(p_4, 1), (p_5, 1.414), (p_3, 2.5)$压入堆中。
+再将堆顶元素$(p_4, 1)$弹出，\textbf{判断恰好$r_q$位于$p_4$所处的cell中，故$p_4$为$q$的$1$-NN结果}。
+
+将堆弹空，$p_4$的邻居压入堆$(p_5, 1.141), (p_6, 2.236), (p_3, 2.5)$，依次判断堆顶元素是否满足关键字编辑距离的阈值要求。
+$p_5$不符合，继续判断堆顶此时发现$p_6$不在本机器上，故将堆内元素和当前的$counter$发往$p_6$所在机器。
+在右侧继续执行$k$NN查询，\textbf{此时$p_6$符合编辑距离要求，输出$p_6$，$2$-NN过程结束}。
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}
+    % generate random points
+    \pgfmathsetseed{1908} % init random with the year Voronoi published his paper ;)
+    \def\pts{(0, -1), (2, 0), (1, -2), (3, -1), (4, 2), (5, -1), (-1, 1), (-2, 1), (-3.5, -2), (-4, 2), (-5, 0)}
+    % \xintFor* #1 in {\xintSeq {1}{\n}} \do{
+    %   \pgfmathsetmacro{\ptx}{.9*\maxxy*rand} % random x in [-.9\maxxy,.9\maxxy]
+    %   \pgfmathsetmacro{\pty}{.9*\maxxy*rand} % random y in [-.9\maxxy,.9\maxxy]
+    %   \edef\pts{\pts, (\ptx,\pty)} % stock the random point
+    % }
+  
+    % draw the points and their cells
+    \xintForpair #1#2 in \pts \do{
+      \edef\pta{#1,#2}
+      \begin{scope}
+        \xintForpair \#3#4 in \pts \do{
+          \edef\ptb{#3,#4}
+          \ifx\pta\ptb\relax % check if (#1,#2) == (#3,#4) ?
+            \tikzstyle{myclip}=[];
+          \else
+            \tikzstyle{myclip}=[clip];
+          \fi;
+          \path[myclip] (#3,#4) to[half plane] (#1,#2);
+        }
+        \clip (-\maxxy,-\maxy) rectangle (\maxxy,\maxy); % last clip
+        \pgfmathsetmacro{\randhue}{rnd}
+        \definecolor{randcolor}{hsb}{\randhue,.5,1}
+        % \fill[randcolor] (#1,#2) circle (4*\biglen); % fill the cell with random color
+        \fill[fill={rgb:black,1;white,2}] (#1, #2) circle (4*\biglen);
+        \fill[draw=red,very thick] (#1,#2) circle (1.4pt); % and draw the point
+      \end{scope}
+    }
+    \pgfresetboundingbox
+    \draw (-\maxxy,-\maxy) rectangle (\maxxy,\maxy);
+    \draw[thick] (-5, 0) rectangle (-4, 2);
+    \draw[thick] (-3.5, -2) rectangle (-1, 1);
+    \draw[thick] (-5, -2) rectangle (-1, 2);
+    \draw[thick] (0, -2) rectangle (2, 0);
+    \draw[thick] (3, -2) rectangle (5, 2);
+    \draw[thick] (0, -2) rectangle (5, 2);
+    \draw[-latex] (-6, -4) -- (-6, 4);
+    \draw[-latex] (-6.5, -3) -- (6.5, -3);
+    \foreach \i in {-5, -4,...,6}
+    {
+      \draw (\i, -3) -- (\i, -3.25) node[below] {\i};
+    }
+    \foreach \ii in {-3, -2,...,3}
+    {
+      \draw (-6, \ii) -- (-6.25, \ii) node[left] {\ii};
+    }
+    \draw[very thick] (-0.5, 4) -- (-0.5, -4);
+    \node[above] (p1) at (-4, 2) {$p_1$:Moe's};
+    \node[below right] (p2) at (-5, 0) {$p_2$:ymca club};
+    \node[below] (p3) at (-3.5, -2) {$p_3$:theaters};
+    \node[above] (p4) at (-2, 1) {$p_4$:theater};
+    \node[above right] (p5) at(-1, 1) {$p_5$:hospital};
+    \node[right] (p6) at(0, -1){$p_6$:theatre};
+    \node[below] (p7) at(1, -2){$p_7$:grocery};
+    \node[above] (p8) at(2, 0) {$p_8$:gym};
+    \node[below] (p9) at(3, -1){$p_9$:barnes noble};
+    \node[above] (p10) at(5, -1) {$p_{10}$:shaw's market}; 
+    \node[above] (p11) at(4, 2) {$p_{11}$:commonwealth ave};
+    \node[above] (q) at (-2, 0) {$\bm{q:(r_q, (theatre,2), 2)}$};
+    \fill[draw=blue,very thick] (-2, 0) circle (1.4pt);
+    \node[above] (n1) at (-2, 2) {$N_1$};
+    \node[above] (n2) at (1, 2) {$N_2$};
+    \node (n3) at (-4.5, 1) {$N_3$};
+    \node (n4) at (-2, -1) {$N_4$};
+    \node (n5) at (1, -0.5) {$N_5$};
+    \node (n6) at (4, 1) {$N_6$};
+    \node[below] (data-partition-1) at (-0.5, -4) {$P$};
+    \node[above] (data-partition-2) at (-0.5, 4) {$D$};
+  \end{tikzpicture}
+  \caption{$k$NN和R$k$NN示例}\label{fig:knn-example}
+\end{figure}
 % \section{实验心得}
 \appendix
 
