@@ -66,7 +66,7 @@
 \subsection{数据}\label{sec:data}
 空间对象集合$D = \{o_1, o_2, \dots, o_n\}$，对于$D$中任意一个对象$o_i = (loc_i, kw_{i, 1}, \dots, kw_{i, m})$，
 即包含$\mathbb{R}^d$维欧式空间中一个点$loc_i$和一组关键字$kw_{i, 1}, \dots, kw_{i, m}$，记为$o_i.loc = loc_i$和$o_i.kw = \{kw_{i, 1}, \dots, kw_{i, m}\}$。
-\textbf{在本项目中主要关注$d = 2$的情况，$\mathbb{R}^2$对于现实中的应用有着很大的价值，但项目中提出的方法可以扩充到任意有限维欧式空间。}
+\textbf{在本项目中主要针对$d = 2$的情况，$\mathbb{R}^2$对于现实中的应用有着很大的价值。}
 
 \subsection{范围查询}\label{sec:range-query}
 \paragraph{输入：}$Q = (Q_{rs}, Q_{rt})$，其中$Q_{rs}$是一个空间范围（$\mathbb{R}^d$维欧式空间中的超立方体）；$Q_{rt}$为关键字近似条件，
@@ -93,7 +93,7 @@ $Q_t = \{(kw_1, \theta_1), \dots, (kw_K, \theta_K)\}$；$k$为表示最近邻居
 % 存储、索引、算法（建议加入系统架构图、设计示例）
 
 \newpage
-% 注意仅用于记录思路，提交时删除。
+% TODO 注意仅用于记录思路，提交时删除。
 主要思路\begin{itemize}
     \item 存储部分，类似Spark、HDFS进行处理
     \item 索引和算法部分，两层索引结构，组织不同节点间的索引使用\texttt{RT-CAN}\cite{RT-CAN}，在本地使用以R树为核心，结合MHR-Tree\cite{MHR-Tree}
@@ -207,7 +207,7 @@ Voronoi图，并将Voronoi图中的邻居$VN(o_i)$和每个cell对应的区域$V
 因此，\textbf{\textit{MVR-Tree}是一个R树的变种，并在每个叶子节点$o_i$记录Voronoi图的信息$VN(o_i), V(o_i)$和
 min-hash信息$g_{o_i}, s(g_{o_i})$，以及在每个内节点$u$记录$s(g_u)$。}
 
-\subsection{二级索引维护}
+\subsection{二级索引维护}\label{sec:maintain-index}
 数据的插入和删除最终都可以定位到局部R树的插入和删除，从而可能会引起一些R树节点发生变化。如果引起变化的结点是已经发送到全局索引的节点的话，这时候就会产生一部分的“脏”索引，通过这些索引查找结果很可能会将查找引导到不正确的存储节点上。
 
 为了解决这个问题，对于已经发送到全局作为索引的R树结点$n_{old}$，会给其一个标记表示这个节点已被发送到全局索引。如果插入和删除动作导致$n_{old}$分割或者合并的话，我们需要重新将这个新的R树节点集合$S_{new}$发送，从而替代之前发送的已经
@@ -272,10 +272,11 @@ min-hash信息$g_{o_i}, s(g_{o_i})$，以及在每个内节点$u$记录$s(g_u)$�
 \end{breakablealgorithm}
 
 \subsection{$k$NN Query}\label{sec:algo-knn}
-对于\ref{sec:knn_query}节提到的$k$NN查询，是利用MVR-Tree先找到距离查询$Q_s$最近的邻居（即$1$-NN），
-根据$1$-NN的结果以及其在Voronoi图上的邻居来实现接下来查询的剪枝，如此相比\cite{MHR-Tree}中直接利用MHR-Tree和
+对于\ref{sec:knn_query}节提到的$k$NN查询，是利用MVR-Tree先找到距离查询$Q_s$最近的邻居（即$1$NN），
+根据$1$NN的结果以及其在Voronoi图上的邻居来实现接下来查询的剪枝，如此相比\cite{MHR-Tree}中直接利用MHR-Tree和
 堆进行的$k$NN查询具有更好的I/O代价\cite{VoR-Tree}。具体的过程如算法\ref{alg:1nn-query}和\ref{algo:knn-query}所示。
 \begin{breakablealgorithm}
+  % TODO 对于1NN而言同样有可能跨机器，如何处理跨机器仍然是一个待做项目。
     \caption{$1$NN Query(RT-CAN $Root$, $(Q_{s}, Q_{t}, k)$)}
     \label{alg:1nn-query}
     \begin{algorithmic}[1]
@@ -313,7 +314,7 @@ min-hash信息$g_{o_i}, s(g_{o_i})$，以及在每个内节点$u$记录$s(g_u)$�
       \While{$counter < k$}
       \State $counter++;$
       \State 取$H$的堆顶元素$p$，并将其弹出
-      \State 输出$counter$-NN即$p$
+      \State 输出$counter$NN即$p$
       \For{对$p$的每个Voronoi图邻居$p'$}
       \If{$p' \notin Visited$}
       \State 将$p'$加入$Visited$，并且将$\mathrm{Dis}(p', Q_s)$插入$H$
@@ -324,12 +325,36 @@ min-hash信息$g_{o_i}, s(g_{o_i})$，以及在每个内节点$u$记录$s(g_u)$�
       \EndFor
       \EndWhile
       \Else
-      \State 不存在$1$-NN，算法结束
+      \State 不存在$1$NN，算法结束
       \EndIf
     \end{algorithmic}
   \end{breakablealgorithm}
+  其中，算法\ref{alg:1nn-query}主要针对如何找到$1$NN，算法\ref{algo:knn-query}主要
+  针对如何在$1$NN的基础上，找到$k$NN的结果。
 \subsection{Reverse $k$NN Query}
+Reverse $k$NN的主要思想是采用filter-refinement框架，维护两个集合，$S_{cnd}$存储当前符合条件的较好候选结果，用于验证每一个项目是否在查询结果内；
+$S_{rfn}$存储较差的候选结果，在$S_{cnd}$没有充分结果时进行补充。具体算法过程如算法\ref{alg:Rknn}。
 
+主要使用了下面两个Voronoi图中的性质来进行剪枝，其相关证明见\cite{6-partitions}\cite{TPL}中。
+\begin{theorem}\label{theorem:RkNN-1}
+  如果$p$是查询$q$的R$k$NN结果中的一个，则在Voronoi图中包含$q$和包含$p$的cell相距不超过$k$个cell。
+\end{theorem}
+\begin{theorem}\label{theorem:RkNN-2}
+  在\cite{6-partitions}中提到的二维欧式空间的划分方式，对于其中的每一个划分，只有距离查询$q$前$k$近的点才有可能是最终的R$k$NN结果。
+\end{theorem}
+\begin{breakablealgorithm}
+  \caption{R$k$NN Query(RT-CAN $Root$, $(Q_{s}, Q_{t}, k), H, Visited, S_{cnd}(1), \dots, S_{cnd}(6)$)}
+  \label{alg:Rknn}
+  \begin{algorithmic}
+    \If{$Visited = \emptyset$}
+    \State 使用\ref{sec:maintain-index}中提到的插入算法，得到$Q_s$在Voronoi图中的邻居$VN(Q_s)$
+    \For{$VN(Q_s)$中的每个顶点$p$}
+    \State 将$(p, 1)$加入$H$，将$p$加入$Visited$
+    \EndFor
+    \EndIf
+  \end{algorithmic}
+  % \Comment{$H, S_{cnd}(1), \dots, S_{cnd}(6)$均为以相距的cell数为衡量方式的小顶堆}
+\end{breakablealgorithm}
 % 画Voronoi Diagram
 % 原始图
 % \begin{tikzpicture}
@@ -705,11 +730,11 @@ min-hash信息$g_{o_i}, s(g_{o_i})$，以及在每个内节点$u$记录$s(g_u)$�
 对于$k$NN查询$q$，首先系统会使用全局索引根据其位置将其定位到某台机器，在本例中根据$q$的位置$r_q$会将其定位到$DP$左侧的机器上，
 并将查询发往对应机器的MVR-Tree根节点$N_1$，$N_1$利用\ref{sec:algo-knn}节提到的算法，将$(N_4, 0), (N_3, 2)$插入堆中。
 将堆顶元素$(N_4, 0)$弹出，将其子节点$(p_4, 1), (p_5, 1.414), (p_3, 2.5)$压入堆中。
-再将堆顶元素$(p_4, 1)$弹出，\textbf{判断恰好$r_q$位于$p_4$所处的cell中，故$p_4$为$q$的$1$-NN结果}。
+再将堆顶元素$(p_4, 1)$弹出，\textbf{判断恰好$r_q$位于$p_4$所处的cell中，故$p_4$为$q$的$1$NN结果}。
 
 将堆弹空，$p_4$的邻居压入堆$(p_5, 1.141), (p_6, 2.236), (p_3, 2.5)$，依次判断堆顶元素是否满足关键字编辑距离的阈值要求。
 $p_5$不符合，继续判断堆顶此时发现$p_6$不在本机器上，故将堆内元素和当前的$counter$发往$p_6$所在机器。
-在右侧继续执行$k$NN查询，\textbf{此时$p_6$符合编辑距离要求，输出$p_6$，$2$-NN过程结束}。
+在右侧继续执行$k$NN查询，\textbf{此时$p_6$符合编辑距离要求，输出$p_6$，$2$NN过程结束}。
 \begin{figure}[H]
   \centering
   \begin{tikzpicture}
@@ -784,7 +809,7 @@ $p_5$不符合，继续判断堆顶此时发现$p_6$不在本机器上，故将�
     \node[below] (data-partition-1) at (-0.5, -4) {$P$};
     \node[above] (data-partition-2) at (-0.5, 4) {$D$};
   \end{tikzpicture}
-  \caption{$k$NN和R$k$NN示例}\label{fig:knn-example}
+  \caption{$k$NN示例}\label{fig:knn-example}
 \end{figure}
 % \section{实验心得}
 \appendix
@@ -793,6 +818,8 @@ $p_5$不符合，继续判断堆顶此时发现$p_6$不在本机器上，故将�
 \begin{thebibliography}{20}
     \bibitem{R-Tree} Guttman A. R-trees: a dynamic index structure for spatial searching[M]. ACM, 1984.
     \bibitem{Voronoi-Diagram} Aurenhammer F. Voronoi diagrams—a survey of a fundamental geometric data structure[J]. ACM Computing Surveys (CSUR), 1991, 23(3): 345-405.
+    \bibitem{6-partitions} Stanoi I, Agrawal D, El Abbadi A. Reverse nearest neighbor queries for dynamic databases[C]//ACM SIGMOD workshop on research issues in data mining and knowledge discovery. 2000: 44-53.
+    \bibitem{TPL} Tao Y, Papadias D, Lian X. Reverse kNN search in arbitrary dimensionality[C]//Proceedings of the Thirtieth international conference on Very large data bases-Volume 30. VLDB Endowment, 2004: 744-755.
     \bibitem{VD-Property} Okabe A, Boots B, Sugihara K, et al. Spatial tessellations: concepts and applications of Voronoi diagrams[M]. John Wiley \& Sons, 2009.
     \bibitem{VoR-Tree} Sharifzadeh M, Shahabi C. Vor-tree: R-trees with voronoi diagrams for efficient processing of spatial nearest neighbor queries[J]. Proceedings of the VLDB Endowment, 2010, 3(1-2): 1231-1242.
     \bibitem{RT-CAN} Wang J, Wu S, Gao H, et al. Indexing multi-dimensional data in a cloud system[C]//Proceedings of the 2010 ACM SIGMOD International Conference on Management of data. ACM, 2010: 591-602.
