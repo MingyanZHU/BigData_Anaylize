@@ -53,7 +53,7 @@
 结果输出至外存中进行保存；\textbf{不同在于对于PageRanking应用，只需要将所有的\texttt{Vertex}保持active状态，执行指定轮数即可，而对于SSSP应用则对每个Worker的状态进行判断，并在下一轮开始
 之前将利用\texttt{wakeUpNextStep}唤醒的worker转入工作状态。}
 
-\subsubsection{\texttt{Worker}及其子类}
+\subsubsection{\texttt{Worker}及其子类}\label{sec:worker}
 \begin{figure}[htb]
     \centering
     \includegraphics[width=0.7\linewidth]{media/worker.png}
@@ -72,7 +72,7 @@
 对于\texttt{SSSPWorker}而言，其\texttt{run}函数需要对其中每个当前接收队列不为空的Vertex执行\texttt{compute}函数，并将执行后为active的顶点，将更新后的信息发送至所有的出边的目的点；
 而对于\texttt{PageRankWorker}而言，其\texttt{run}函数相对简单，只需要在第0轮super step利用对应的aggregator统计顶点的数目，在剩余轮数中对所有的顶点执行\texttt{compute}。
 
-\subsubsection{\texttt{Vertex}及其子类}
+\subsubsection{\texttt{Vertex}及其子类}\label{sec:vertex}
 \begin{figure}[htb]
     \centering
     \includegraphics[width=0.7\linewidth]{media/vertex.png}
@@ -137,10 +137,16 @@
 \end{itemize}
 
 \subsection{图分析算法实现}
+SSSP的实现和PageRank的实现区别主要在\texttt{Worker}和\texttt{Vertex}实现的区别，接下来分别进行说明。
 \subsubsection{SSSP的实现}
+\texttt{SSSPVertex}在接收到消息时将自身转为active状态，但通过消息队列计算当前的最短距离没有发生改变，就再将自身转为inactive状态。
+关于\texttt{SSSPWorker}的区别，在\ref{sec:worker}节有详细说明。
 \subsubsection{PageRank的实现}
+\texttt{PageRankWorker}只需在指定轮数之内保持active状态，将更新后的信息发送给所有的出边目的顶点即可，到达制定轮数之后转为inactive即可。
+关于\texttt{PageRankWorker}的具体实现，见\ref{sec:worker}节说明。
 \section{实验心得}
-可以分享您在实验环境搭建、程序编写和调试以及结果分析过程中遇到的问题和解决方法。
+总的来说，模拟Pregel\cite{pregel}的难度不大，而在于理清各个类之间的关系，以及模拟BSP模型时注意模拟各个方法的调用顺序。建议在之后的实验里可以
+适当增大该实验的难度，比如多线程并行模拟BSP模型，线程数为worker数量。
 \appendix
 
 % \section{源代码}

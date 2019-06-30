@@ -28,7 +28,7 @@
         
         \vspace{1.5cm}
         
-        \textbf{\zihao{2} 实验报告之一}
+        \textbf{\zihao{2} \ML@value@expname}
         
         \vspace{1.5cm}
 
