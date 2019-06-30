@@ -92,13 +92,13 @@ $Q_t = \{(kw_1, \theta_1), \dots, (kw_K, \theta_K)\}$；$k$为表示最近邻居
 % \section{系统设计}
 % 存储、索引、算法（建议加入系统架构图、设计示例）
 
-\newpage
-% TODO 注意仅用于记录思路，提交时删除。
-主要思路\begin{itemize}
-    \item 存储部分，类似Spark、HDFS进行处理
-    \item 索引和算法部分，两层索引结构，组织不同节点间的索引使用\texttt{RT-CAN}\cite{RT-CAN}，在本地使用以R树为核心，结合MHR-Tree\cite{MHR-Tree}
-    进行范围查询，结合Voronoi Diagrams\cite{VoR-Tree}进行$k$NN查询和Reverse $k$NN查询。
-\end{itemize}
+% \newpage
+% % TODO 注意仅用于记录思路，提交时删除。
+% 主要思路\begin{itemize}
+%     \item 存储部分，类似Spark、HDFS进行处理
+%     \item 索引和算法部分，两层索引结构，组织不同节点间的索引使用\texttt{RT-CAN}\cite{RT-CAN}，在本地使用以R树为核心，结合MHR-Tree\cite{MHR-Tree}
+%     进行范围查询，结合Voronoi Diagrams\cite{VoR-Tree}进行$k$NN查询和Reverse $k$NN查询。
+% \end{itemize}
 
 \section{Background}
 \subsection{R-Tree}
@@ -150,7 +150,7 @@ CAN(Content Addressable Network)是一种自组织性很强的P2P覆盖网络，
 \subsection{数据备份}
 为了使系统有一定的对抗异常状态的容错能力，数据备份是必不可少的，这里我们选择使用primary-secondary的中心副本控制协议来实现数据的备份并维护副本之间的一致性。在primary-secondary协议中，副本被分为两类，其中有一个副本被当作primary副本，它是中心节点，负责维护数据的更新，并发控制以及维护副本之间的一致性等。其他的副本都是secondary副本。
 
-如图2所示，数据更新的过程中，外部的节点发送请求给primary节点，然后primary节点再将更新操作分发给所属它的secondary节点。这个过程我们选择提供最终一致性，即secondary节点和primary节点不一致，需要的只是后续过程中secondary节点能够可以同步到primary一致的状态即可。但是可能发生的问题就是secondary未与primary更新一致的情况下primary节点又收到了一个更新请求，会产生不一致的情况。对于这种情况，我们选择在secondary节点同步到和primary节点过程中，secondary节点同步到primary某个时刻的快照（snapshot）的状态，更新完如果仍不一致则继续更新。
+数据更新的过程中，外部的节点发送请求给primary节点，然后primary节点再将更新操作分发给所属它的secondary节点。这个过程我们选择提供最终一致性，即secondary节点和primary节点不一致，需要的只是后续过程中secondary节点能够可以同步到primary一致的状态即可。但是可能发生的问题就是secondary未与primary更新一致的情况下primary节点又收到了一个更新请求，会产生不一致的情况。对于这种情况，我们选择在secondary节点同步到和primary节点过程中，secondary节点同步到primary某个时刻的快照（snapshot）的状态，更新完如果仍不一致则继续更新。
 
 数据更新过程中由于secondary节点的数据可能会落后于primary节点，所以一些存储“旧”数据的secondary节点的部分数据其实是不可用的。为了解决这个问题，我们将secondary节点的状态分为两种：一种是与primary一致的状态，这时可以读取其中的数据；另一种是被标记为不可用的状态，表明secondary节点的数据仍处于被更新的状态从而无法读取其中的数据。从某种意义上来讲，这种方法通过降低了一定的可用性来提高系统的一致性。
 
@@ -164,7 +164,8 @@ primary节点宕机后，选择合适的primary副本进行替换也是很重要
 
 \subsubsection{RT-CAN节点结构}
 RT-CAN索引是建立在一个shared-nothing的集群上的。
-如图1所示，集群中的每一个节点$N_i$都包含了两个部分：一个是存储节点$N_{si}$，另一个是覆盖节点$N_{oi}$。
+% 如图1所示，
+集群中的每一个节点$N_i$都包含了两个部分：一个是存储节点$N_{si}$，另一个是覆盖节点$N_{oi}$。
 $N_{si}$表示的是分布式存储的特征，它存储着所有数据划分的一部分。
 为了满足空间近似查询，以及空间近似的$k$NN和R$k$NN查询，$N_{si}$使用了一种R树的变种来存储局部数据，从而满足我们的查询需求。
 $N_{oi}$是用来表示CAN结构化覆盖的部分，它负责的是CAN划分的一部分。
@@ -207,11 +208,28 @@ Voronoi图，并将Voronoi图中的邻居$VN(o_i)$和每个cell对应的区域$V
 因此，\textbf{\textit{MVR-Tree}是一个R树的变种，并在每个叶子节点$o_i$记录Voronoi图的信息$VN(o_i), V(o_i)$和
 min-hash信息$g_{o_i}, s(g_{o_i})$，以及在每个内节点$u$记录$s(g_u)$。}
 
-\subsection{二级索引维护}\label{sec:maintain-index}
+\subsection{索引维护}\label{sec:maintain-index}
+\subsubsection{全局索引维护}
 数据的插入和删除最终都可以定位到局部R树的插入和删除，从而可能会引起一些R树节点发生变化。如果引起变化的结点是已经发送到全局索引的节点的话，这时候就会产生一部分的“脏”索引，通过这些索引查找结果很可能会将查找引导到不正确的存储节点上。
 
 为了解决这个问题，对于已经发送到全局作为索引的R树结点$n_{old}$，会给其一个标记表示这个节点已被发送到全局索引。如果插入和删除动作导致$n_{old}$分割或者合并的话，我们需要重新将这个新的R树节点集合$S_{new}$发送，从而替代之前发送的已经
 过时的索引。替代过程分删除源索引和添加新索引两部分。因为$n_{old}$和$S_{new}$中各结点的中心和半径不同，所以要按$n_{old}$的中心和半径发布删除信息将旧的索引结点全都删除；然后对于$S_{new}$中的各个节点，按照它们的中心和半径发送索引消息作为新的全局索引存储即可。
+
+\subsubsection{本地索引维护}
+数据的插入和删除最终都可以定位到局部R树的插入和删除，从而可能会引起一些R树节点发生变化。如果引起变化的结点是已经发送到全局索引的节点的话，这时候就会产生一部分的“脏”索引，通过这些索引查找结果很可能会将查找引导到不正确的存储节点上。
+
+为了解决这个问题，对于已经发送到全局作为索引的R树结点$n_{old}$，会给其一个标记表示这个节点已被发送到全局索引。如果插入和删除动作导致$n_{old}$分割或者合并的话，我们需要重新将这个新的R树节点集合$S_{new}$发送，从而替代之前发送的已经
+过时的索引。替代过程分删除源索引和添加新索引两部分。因为$n_{old}$和$S_{new}$中各结点的中心和半径不同，所以要按$n_{old}$的中心和半径发布删除信息将旧的索引结点全都删除；然后对于$S_{new}$中的各个节点，按照它们的中心和半径发送索引消息作为新的全局索引存储即可。
+
+数据的插入和删除首先会按照R树的维护方法来对树进行更新，然后对本地MVR树来说，其结构的维护还需要需要考虑两个方面：一方面要考虑更新叶子节点上保存的Voronoi图的信息，另一方面还需要维护叶子节点上保存的min-hash信息以及非叶节点保存的min-hash签名。接下来分别考虑这两方面的信息如何来维护。
+
+首先考虑Voronoi图信息的维护，这个过程其实就是动态维护Voronoi图关系的过程\cite{maintain-index}。插入一个点$p$，我们首先能定位它的位置并且找到离它最近的点$x$，很明显我们可以得到点$p$在以点$x$为中心的cell内。然后我们主要的任务就是找到插入点$p$而受影响的那些点，由于Voronoi图的结构，我们容易得到，和点$p$有公共边的点一定在原Voronoi图中和点$x$有公共边，所以我们只需判断这些点中那些受影响即可。然后对于这些点，重新求他们的公共边并更新他们存储的Voronoi图信息即可。
+
+删除一个点$q$，我们首先要通过其R树的结构来定位这个点，然后通过点记录的信息得到它的邻居，得到需要修改的所有顶点的集合。然后访问每一个邻居，在他们记录的邻居信息中删除点$q$。所有需要修改的顶点都做完删除操作后，再重构这些点中保存的边获得删除点$q$后的Voronoi图的结构。
+
+然后考虑维护叶节点上保存的min-hash信息以及非叶节点保存的min-hash签名。插入一个节点$p$，首先需要计算它的min-hash信息，然后，比较它的值和包含它的叶节点保存的min-hash值，并取最小的作为新的值。如果对叶节点上保存的min-hash信息进行了更新的话，需要把这个变化传递给它的父节点，然后父节点执行相似的动作：如果更新的值小于原来存储的min-hash值就对其进行替换。这样的操作会一直执行到不再更新父节点的min-hash签名，一次插入结束。
+
+删除一个点$q$，如果点$q$的签名和这个位置的签名相同的话，我们就需要重新计算出去这个点的这个位置的min-hash值。如果叶节点更新的话，就执行和插入类似的操作来迭代地更新父节点的值直到停止即可。
 \section{查询处理}
 在本地使用MVR-Tree进行范围查询、$k$NN查询和R$k$NN查询，分别是使用\cite{MHR-Tree}
 中针对range query的方法和使用\cite{VoR-Tree}中针对$k$NN和R$k$NN的方法来实现。
@@ -952,6 +970,7 @@ $p_5$不符合，继续判断堆顶此时发现$p_6$不在本机器上，故将�
     \bibitem{R-Tree} Guttman A. R-trees: a dynamic index structure for spatial searching[M]. ACM, 1984.
     \bibitem{Voronoi-Diagram} Aurenhammer F. Voronoi diagrams—a survey of a fundamental geometric data structure[J]. ACM Computing Surveys (CSUR), 1991, 23(3): 345-405.
     \bibitem{6-partitions} Stanoi I, Agrawal D, El Abbadi A. Reverse nearest neighbor queries for dynamic databases[C]//ACM SIGMOD workshop on research issues in data mining and knowledge discovery. 2000: 44-53.
+    \bibitem{maintain-index} Okabe A, Boots B, Sugihara K. Spatial tessellations. Concepts and Applications of Voronoi diagrams[J]. College Mathematics Journal, 2001, 43(1).
     \bibitem{TPL} Tao Y, Papadias D, Lian X. Reverse kNN search in arbitrary dimensionality[C]//Proceedings of the Thirtieth international conference on Very large data bases-Volume 30. VLDB Endowment, 2004: 744-755.
     \bibitem{VD-Property} Okabe A, Boots B, Sugihara K, et al. Spatial tessellations: concepts and applications of Voronoi diagrams[M]. John Wiley \& Sons, 2009.
     \bibitem{VoR-Tree} Sharifzadeh M, Shahabi C. Vor-tree: R-trees with voronoi diagrams for efficient processing of spatial nearest neighbor queries[J]. Proceedings of the VLDB Endowment, 2010, 3(1-2): 1231-1242.
